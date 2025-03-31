@@ -1,6 +1,9 @@
 import { MongoClient } from 'mongodb';
+import dotenv from 'dotenv';
 
-const uri = 'mongodb://localhost:27017';
+dotenv.config();
+
+const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017';
 const dbName = 'chamadorSenhas';
 
 async function setupDatabase() {

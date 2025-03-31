@@ -11,10 +11,16 @@ import limparDadosRouter from './routes/limparDados.js';
 dotenv.config();
 
 // Verificar se o arquivo .env foi carregado corretamente
-console.log('Variáveis de ambiente carregadas:', {
+console.log('Variáveis de ambiente completas:', {
   JWT_SECRET: process.env.JWT_SECRET ? 'Definido' : 'Não definido',
-  MONGODB_URI: process.env.MONGODB_URI ? 'Definido' : 'Não definido'
+  MONGODB_URI: process.env.MONGODB_URI || 'Não definido',
+  NODE_ENV: process.env.NODE_ENV || 'development'
 });
+
+if (!process.env.MONGODB_URI) {
+  console.error('ERRO: MONGODB_URI não está definido nas variáveis de ambiente');
+  process.exit(1);
+}
 
 // Verificar se as variáveis de ambiente essenciais estão definidas
 if (!process.env.JWT_SECRET) {
@@ -28,14 +34,16 @@ if (!process.env.JWT_SECRET) {
 const app = express();
 const port = process.env.PORT || 3005;
 
-// Middleware para tratamento de CORS
-app.use(cors({
+const corsOptions = {
   origin: [
     'http://localhost:3000',
-    'https://chamador-senhas.vercel.app', // seu domínio no Vercel
+    'https://chamador.vercel.app'
   ],
-  credentials: true
-}));
+  credentials: true,
+  optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
 
 // Função para encontrar uma porta disponível
 const findAvailablePort = async (startPort) => {
@@ -58,7 +66,7 @@ const findAvailablePort = async (startPort) => {
 app.use(express.json());
 
 // MongoDB connection
-const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017';
+const uri = process.env.MONGODB_URI;
 const dbName = 'chamadorSenhas';
 
 let client = null;
@@ -67,12 +75,12 @@ let db = null;
 async function connectToMongoDB() {
   try {
     console.log('Tentando conectar ao MongoDB...');
-    console.log('URI:', uri);
+    console.log('URI:', uri.replace(/:[^:]*@/, ':****@')); // Oculta a senha no log
     console.log('Database:', dbName);
     
     client = new MongoClient(uri, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
     });
     
     await client.connect();
