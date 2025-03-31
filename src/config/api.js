@@ -1,23 +1,29 @@
 import axios from 'axios';
 
-// Verificar se estamos em ambiente de produção para usar a URL correta
-const API_URL = process.env.NODE_ENV === 'production'
-  ? 'https://chamador-backend.onrender.com'  // URL do backend no Render
-  : 'http://localhost:3005';  // URL local para desenvolvimento
-
-console.log('API_URL:', API_URL);
+// Verificar se estamos em ambiente de produção
+const isProduction = process.env.NODE_ENV === 'production';
 console.log('NODE_ENV:', process.env.NODE_ENV);
 
-// Configuração básica do axios sem interferir com CORS
+// Em produção, usamos o proxy do Vercel (/api redireciona para o backend)
+// Em desenvolvimento, usamos a URL completa
+const API_URL = isProduction 
+  ? '' // URL vazia para usar o proxy do Vercel 
+  : 'http://localhost:3005';
+
+console.log('API_URL:', API_URL);
+
+// Configuração básica do axios
 axios.defaults.baseURL = API_URL;
 axios.defaults.withCredentials = false;
+axios.defaults.headers.common['Content-Type'] = 'application/json';
 
-// Interceptor para adicionar apenas o token
+// Interceptor para adicionar token e logs
 axios.interceptors.request.use(
   (config) => {
     console.log(`Fazendo requisição para: ${config.url}`);
-    console.log(`Método: ${config.method.toUpperCase()}`);
+    console.log(`Método: ${config.method?.toUpperCase()}`);
     
+    // Adicionar token de autenticação quando disponível
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
