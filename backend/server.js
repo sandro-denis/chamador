@@ -33,18 +33,33 @@ if (!process.env.JWT_SECRET) {
 const app = express();
 const port = process.env.PORT || 3005;
 
-// Configuração do CORS
-app.use(cors({
-  origin: [
-    'http://localhost:3000', 
-    'https://chamador-senhas.vercel.app', 
-    'https://chamador-front.vercel.app',
-    'https://chamador-6woei8hby-sandro-denis-projects.vercel.app'
-  ],
-  credentials: false,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept']
-}));
+// Criar middleware personalizado para CORS
+app.use((req, res, next) => {
+  // Obter a origem da requisição
+  const origin = req.headers.origin;
+  
+  // Registrar a origem para debug
+  console.log('Requisição recebida de origem:', origin);
+  
+  // Permitir qualquer origem
+  res.header('Access-Control-Allow-Origin', origin || '*');
+  
+  // Permitir credenciais
+  res.header('Access-Control-Allow-Credentials', 'false');
+  
+  // Permitir métodos
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  
+  // Permitir headers
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  // Lidar com requisições OPTIONS (preflight)
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
+});
 
 // Middleware para processar JSON
 app.use(express.json());
