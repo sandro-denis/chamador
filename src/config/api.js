@@ -1,17 +1,26 @@
 import axios from 'axios';
 
+// Verificar se estamos em ambiente de produção para usar a URL correta
 const API_URL = process.env.NODE_ENV === 'production'
   ? 'https://chamador-backend.onrender.com'  // URL do backend no Render
   : 'http://localhost:3005';  // URL local para desenvolvimento
 
+console.log('API_URL:', API_URL);
+console.log('NODE_ENV:', process.env.NODE_ENV);
+
 // Configuração global do axios
 axios.defaults.baseURL = API_URL;
-axios.defaults.withCredentials = false; // Alterado para false para evitar problemas de CORS
+axios.defaults.withCredentials = false; // Desabilita cookies cross-origin
 axios.defaults.headers.common['Content-Type'] = 'application/json';
+axios.defaults.headers.common['Access-Control-Allow-Origin'] = '*';
 
 // Interceptor para adicionar o token em todas as requisições
 axios.interceptors.request.use(
   (config) => {
+    // Adicionar logs para debug
+    console.log(`Fazendo requisição para: ${config.url}`);
+    console.log(`Método: ${config.method.toUpperCase()}`);
+    
     const token = localStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -19,6 +28,20 @@ axios.interceptors.request.use(
     return config;
   },
   (error) => {
+    console.error('Erro na requisição:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Interceptor para tratar respostas
+axios.interceptors.response.use(
+  (response) => {
+    console.log(`Resposta recebida de: ${response.config.url}`);
+    console.log(`Status: ${response.status}`);
+    return response;
+  },
+  (error) => {
+    console.error('Erro na resposta:', error);
     return Promise.reject(error);
   }
 );
