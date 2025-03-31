@@ -4,11 +4,14 @@ import axios from 'axios';
 const isProduction = process.env.NODE_ENV === 'production';
 console.log('NODE_ENV:', process.env.NODE_ENV);
 
+// URL completa do backend (para referência e desenvolvimento)
+const BACKEND_URL = 'https://chamador-backend.onrender.com';
+
 // Em produção, usamos o proxy do Vercel (/api redireciona para o backend)
 // Em desenvolvimento, usamos a URL completa
 const API_URL = isProduction 
   ? '' // URL vazia para usar o proxy do Vercel 
-  : 'http://localhost:3005';
+  : BACKEND_URL;
 
 console.log('API_URL:', API_URL);
 
@@ -20,7 +23,7 @@ axios.defaults.headers.common['Content-Type'] = 'application/json';
 // Interceptor para adicionar token e logs
 axios.interceptors.request.use(
   (config) => {
-    console.log(`Fazendo requisição para: ${config.url}`);
+    console.log(`Fazendo requisição para: ${config.baseURL || ''}${config.url}`);
     console.log(`Método: ${config.method?.toUpperCase()}`);
     
     // Adicionar token de autenticação quando disponível
@@ -44,9 +47,16 @@ axios.interceptors.response.use(
     return response;
   },
   (error) => {
-    console.error('Erro na resposta:', error);
+    if (error.response) {
+      console.error(`Erro na resposta: Status ${error.response.status}`);
+      console.error('Dados:', error.response.data);
+    } else if (error.request) {
+      console.error('Erro na requisição: Sem resposta do servidor');
+    } else {
+      console.error('Erro:', error.message);
+    }
     return Promise.reject(error);
   }
 );
 
-export default API_URL; 
+export default API_URL;
