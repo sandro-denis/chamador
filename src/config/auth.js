@@ -79,18 +79,10 @@ export const login = async (email, password) => {
       // Verificar conectividade com o servidor antes de tentar login
       await verificarConectividade();
       
-      // Headers adicionais para CORS
-      const headers = {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-      };
-      
       const response = await axios.post(`${API_URL}/api/login`, {
         email: trimmedEmail,
         password: trimmedPassword
-      }, { headers });
+      });
       
       console.log('Resposta do servidor recebida:', {
         status: response.status,
@@ -147,19 +139,11 @@ export const register = async (email, password, companyName) => {
       passwordLength: trimmedPassword.length
     });
     
-    // Headers adicionais para CORS
-    const headers = {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-    };
-    
     const response = await axios.post(`${API_URL}/api/register`, {
       email: trimmedEmail,
       password: trimmedPassword,
       companyName: trimmedCompanyName
-    }, { headers });
+    });
     
     const { token, user } = response.data;
     

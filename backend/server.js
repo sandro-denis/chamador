@@ -33,32 +33,26 @@ if (!process.env.JWT_SECRET) {
 const app = express();
 const port = process.env.PORT || 3005;
 
-// Criar middleware personalizado para CORS
+// Configuração CORS completamente permissiva
 app.use((req, res, next) => {
-  // Obter a origem da requisição
-  const origin = req.headers.origin;
-  
-  // Registrar a origem para debug
-  console.log('Requisição recebida de origem:', origin);
-  
   // Permitir qualquer origem
-  res.header('Access-Control-Allow-Origin', origin || '*');
+  res.setHeader('Access-Control-Allow-Origin', '*');
   
-  // Permitir credenciais
-  res.header('Access-Control-Allow-Credentials', 'false');
+  // Permitir todos os métodos
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   
-  // Permitir métodos
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  // Permitir todos os headers
+  res.setHeader('Access-Control-Allow-Headers', '*');
   
-  // Permitir headers
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  // Permitir cookies
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   
-  // Lidar com requisições OPTIONS (preflight)
+  // Lidar com requisições OPTIONS imediatamente
   if (req.method === 'OPTIONS') {
-    res.sendStatus(200);
-  } else {
-    next();
+    return res.status(200).end();
   }
+  
+  next();
 });
 
 // Middleware para processar JSON

@@ -8,16 +8,13 @@ const API_URL = process.env.NODE_ENV === 'production'
 console.log('API_URL:', API_URL);
 console.log('NODE_ENV:', process.env.NODE_ENV);
 
-// Configuração global do axios
+// Configuração básica do axios sem interferir com CORS
 axios.defaults.baseURL = API_URL;
-axios.defaults.withCredentials = false; // Desabilita cookies cross-origin
-axios.defaults.headers.common['Content-Type'] = 'application/json';
-axios.defaults.headers.common['Access-Control-Allow-Origin'] = '*';
+axios.defaults.withCredentials = false;
 
-// Interceptor para adicionar o token em todas as requisições
+// Interceptor para adicionar apenas o token
 axios.interceptors.request.use(
   (config) => {
-    // Adicionar logs para debug
     console.log(`Fazendo requisição para: ${config.url}`);
     console.log(`Método: ${config.method.toUpperCase()}`);
     
