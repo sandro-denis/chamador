@@ -6,7 +6,7 @@ const API_URL = process.env.NODE_ENV === 'production'
 
 // Configuração global do axios
 axios.defaults.baseURL = API_URL;
-axios.defaults.withCredentials = true;
+axios.defaults.withCredentials = false; // Alterado para false para evitar problemas de CORS
 axios.defaults.headers.common['Content-Type'] = 'application/json';
 
 // Interceptor para adicionar o token em todas as requisições
