@@ -35,7 +35,12 @@ const port = process.env.PORT || 3005;
 
 // Configuração do CORS
 app.use(cors({
-  origin: ['http://localhost:3000', 'https://chamador-senhas.vercel.app', 'https://chamador-front.vercel.app'],
+  origin: [
+    'http://localhost:3000', 
+    'https://chamador-senhas.vercel.app', 
+    'https://chamador-front.vercel.app',
+    'https://chamador-6woei8hby-sandro-denis-projects.vercel.app'
+  ],
   credentials: false,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'Accept']
