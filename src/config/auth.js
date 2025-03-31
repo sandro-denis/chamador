@@ -176,14 +176,17 @@ export const logout = async () => {
 };
 
 // Função para criar uma nova senha
-export const criarSenha = async (tipo) => {
+export const criarSenha = async (tipo, userId = null) => {
   try {
     const token = getToken();
     if (!token) throw new Error('Usuário não autenticado');
 
     const response = await axios.post(
       `${API_URL}/api/senhas`,
-      { tipo },
+      { 
+        tipo,
+        userId // Incluir o ID do usuário na requisição
+      },
       { headers: { Authorization: `Bearer ${token}` } }
     );
     
@@ -225,6 +228,11 @@ export const buscarSenhasAguardando = async (params = {}) => {
       }
     }
     
+    // Incluir o userId nos parâmetros da consulta se disponível
+    if (params.userId) {
+      requestParams.userId = params.userId;
+    }
+    
     console.log('Enviando requisição com parâmetros:', requestParams);
     
     const response = await axios.get(`${API_URL}/api/senhas/aguardando`, {
@@ -240,7 +248,7 @@ export const buscarSenhasAguardando = async (params = {}) => {
 };
 
 // Função para atualizar o status de uma senha
-export const atualizarStatusSenha = async (senhaId, status, guiche = null) => {
+export const atualizarStatusSenha = async (senhaId, status, guiche = null, userId = null) => {
   try {
     const token = getToken();
     if (!token) throw new Error('Usuário não autenticado');
@@ -248,6 +256,7 @@ export const atualizarStatusSenha = async (senhaId, status, guiche = null) => {
     const updates = {
       status,
       ...(guiche && { guiche }), // Inclui o guichê apenas se ele for fornecido
+      ...(userId && { userId }), // Inclui o userId apenas se ele for fornecido
       ...(status === 'chamada' ? { horarioChamada: new Date().toISOString() } : {}),
       ...(status === 'finalizada' ? { horarioFinalizacao: new Date().toISOString() } : {})
     };

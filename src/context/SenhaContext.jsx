@@ -12,7 +12,7 @@ export const TIPOS_SENHA = {
 }
 
 export const SenhaProvider = ({ children }) => {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
   const [senhas, setSenhas] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
@@ -49,28 +49,33 @@ export const SenhaProvider = ({ children }) => {
   useEffect(() => {
     // Tentar recuperar senhas do localStorage ao iniciar
     try {
-      const senhasSalvas = localStorage.getItem('senhas_sistema')
+      // Usar o ID do usuário como chave para o localStorage para separar as senhas por usuário
+      const userId = user?._id || 'guest'
+      const senhasSalvas = localStorage.getItem(`senhas_sistema_${userId}`)
       if (senhasSalvas) {
         const parsedSenhas = JSON.parse(senhasSalvas)
         setSenhas(parsedSenhas)
-        console.log('Senhas carregadas do localStorage:', parsedSenhas.length)
+        console.log('Senhas carregadas do localStorage para usuário:', userId, parsedSenhas.length)
       }
     } catch (error) {
       console.error('Erro ao carregar senhas do localStorage:', error)
     }
-  }, [])
+  }, [user])
 
   // Buscar senhas aguardando periodicamente
   useEffect(() => {
-    if (!isAuthenticated) return
+    if (!isAuthenticated || !user) return
 
     const fetchSenhas = async () => {
       try {
         setLoading(true)
-        console.log('Buscando senhas aguardando e chamadas...')
+        console.log('Buscando senhas aguardando e chamadas para usuário:', user._id)
         
         // Criar parâmetros para a requisição - buscar aguardando, chamadas e finalizadas
-        const params = { status: ['aguardando', 'chamada', 'finalizada'] };
+        const params = { 
+          status: ['aguardando', 'chamada', 'finalizada'],
+          userId: user._id
+        };
         
         // Buscar senhas atualizadas do servidor
         const data = await buscarSenhasAguardando(params)
@@ -111,11 +116,12 @@ export const SenhaProvider = ({ children }) => {
               }
             }, [])
             
-            // Armazenar todas as senhas no localStorage
-            localStorage.setItem('senhas_sistema', JSON.stringify(uniqueSenhas))
+            // Armazenar todas as senhas no localStorage com o ID do usuário
+            const userId = user._id || 'guest'
+            localStorage.setItem(`senhas_sistema_${userId}`, JSON.stringify(uniqueSenhas))
             
-            // Armazenar senhas no localStorage com timestamp para detecção de mudanças
-            localStorage.setItem('senhas_timestamp', Date.now().toString())
+            // Armazenar timestamp para detecção de mudanças
+            localStorage.setItem(`senhas_timestamp_${userId}`, Date.now().toString())
             
             return uniqueSenhas
           })
@@ -124,7 +130,8 @@ export const SenhaProvider = ({ children }) => {
         console.error('Erro ao buscar senhas:', error)
         setError(error.message)
         // Em caso de erro, tentar usar dados do localStorage
-        const senhasSalvas = localStorage.getItem('senhas_sistema')
+        const userId = user?._id || 'guest'
+        const senhasSalvas = localStorage.getItem(`senhas_sistema_${userId}`)
         if (senhasSalvas) {
           try {
             const parsedSenhas = JSON.parse(senhasSalvas)
@@ -142,14 +149,15 @@ export const SenhaProvider = ({ children }) => {
     const interval = setInterval(fetchSenhas, 3000) // Atualizar a cada 3 segundos
 
     return () => clearInterval(interval)
-  }, [isAuthenticated])
+  }, [isAuthenticated, user])
 
   const gerarSenha = async (tipo) => {
     try {
       setLoading(true)
       console.log('Gerando senha do tipo:', tipo)
       
-      const novaSenha = await criarSenha(tipo)
+      // Passar o ID do usuário atual para a função criarSenha
+      const novaSenha = await criarSenha(tipo, user?._id)
       console.log('Senha gerada com sucesso:', novaSenha)
       
       // Adicionar a nova senha à lista
@@ -241,7 +249,7 @@ export const SenhaProvider = ({ children }) => {
         
         // Recuperar senhas antigas do localStorage para não perder o histórico
         try {
-          const senhasSistemaAntigas = localStorage.getItem('senhas_sistema')
+          const senhasSistemaAntigas = localStorage.getItem(`senhas_sistema_${user?._id || 'guest'}`)
           if (senhasSistemaAntigas) {
             const senhasAntigas = JSON.parse(senhasSistemaAntigas)
             // Adicionar senhas antigas que não estão na lista atual
@@ -264,8 +272,8 @@ export const SenhaProvider = ({ children }) => {
         }
         
         // Armazenar separadamente as senhas aguardando e todas as senhas
-        localStorage.setItem('senhasAguardando', JSON.stringify(senhasAguardando))
-        localStorage.setItem('senhas_sistema', JSON.stringify(todasSenhas))
+        localStorage.setItem(`senhasAguardando_${user?._id || 'guest'}`, JSON.stringify(senhasAguardando))
+        localStorage.setItem(`senhas_sistema_${user?._id || 'guest'}`, JSON.stringify(todasSenhas))
         
         return updatedSenhas
       })
@@ -293,15 +301,15 @@ export const SenhaProvider = ({ children }) => {
       } : s))
       
       // Atualizar o localStorage
-      const senhasSalvas = JSON.parse(localStorage.getItem('senhas_sistema') || '[]')
+      const senhasSalvas = JSON.parse(localStorage.getItem(`senhas_sistema_${user?._id || 'guest'}`) || '[]')
       const senhasAtualizadas = senhasSalvas.map(s => s._id === senhaId ? {
         ...s,
         ...senhaAtualizada,
         status: 'finalizada',
         horarioFinalizacao: senhaAtualizada.horarioFinalizacao || new Date().toISOString()
       } : s)
-      localStorage.setItem('senhas_sistema', JSON.stringify(senhasAtualizadas))
-      localStorage.setItem('senhas_timestamp', Date.now().toString())
+      localStorage.setItem(`senhas_sistema_${user?._id || 'guest'}`, JSON.stringify(senhasAtualizadas))
+      localStorage.setItem(`senhas_timestamp_${user?._id || 'guest'}`, Date.now().toString())
       
       return senhaAtualizada
     } catch (error) {
@@ -379,7 +387,6 @@ export const SenhaProvider = ({ children }) => {
         error,
         isConnected,
         ultimaSenhaGerada,
-        setUltimaSenhaGerada,
         gerarSenha,
         chamarSenha,
         finalizarSenha,

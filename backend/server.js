@@ -361,41 +361,34 @@ app.post('/api/login', validateFields, async (req, res) => {
 // Rotas de senhas
 app.post('/api/senhas', verificarToken, async (req, res) => {
   try {
-    console.log('Recebida requisição de nova senha:', req.body);
+    console.log('Recebendo solicitação para criar senha:', req.body);
     
-    // Verificar se o usuário tem permissão para gerar senha
-    const users = db.collection('users');
-    const user = await users.findOne({ _id: req.userId });
+    const { tipo } = req.body;
+    const userId = req.userId; // Sempre usar o ID do usuário autenticado
     
-    if (!user) {
-      return res.status(404).json({ message: 'Usuário não encontrado' });
-    }
-    
-    // Garantir que todos os usuários possam gerar senhas
-    if (!user.permissoes) {
-      user.permissoes = { gerarSenha: true, chamarSenha: true, finalizarSenha: true };
-      await users.updateOne({ _id: req.userId }, { $set: { permissoes: user.permissoes } });
-    } else if (user.permissoes.gerarSenha === undefined || user.permissoes.gerarSenha === false) {
-      user.permissoes.gerarSenha = true;
-      await users.updateOne({ _id: req.userId }, { $set: { 'permissoes.gerarSenha': true } });
-    }
-    
-    const tipo = req.body.tipo;
     if (!tipo) {
-      return res.status(400).json({ message: 'Tipo da senha é obrigatório' });
+      return res.status(400).json({ message: 'Tipo de senha é obrigatório' });
     }
-
-    // Obter o último contador para este tipo de senha e usuário
+    
+    // Verificar se o tipo é válido (P, N, R)
+    if (!['P', 'N', 'R'].includes(tipo)) {
+      return res.status(400).json({ message: 'Tipo de senha inválido. Use P, N ou R' });
+    }
+    
     const senhas = db.collection('senhas');
+    
+    // Buscar o último número usado para o tipo e usuário
     const ultimaSenha = await senhas.find({ 
-      userId: req.userId,
-      tipo: tipo
-    }).sort({ numero: -1 }).limit(1).toArray();
+      tipo, 
+      userId, // Filtrar por usuário correto
+      // Ordenar pelas senhas mais recentes
+      createdAt: { $exists: true }
+    }).sort({ createdAt: -1 }).limit(1).toArray();
     
     let proximoNumero = 1;
-    if (ultimaSenha.length > 0 && ultimaSenha[0].numero) {
-      // Extrair o número da senha (ignorando o prefixo do tipo)
-      const numeroAtual = parseInt(ultimaSenha[0].numero.replace(/[^0-9]/g, ''));
+    
+    if (ultimaSenha.length > 0) {
+      const numeroAtual = parseInt(ultimaSenha[0].numero.substring(1), 10);
       if (!isNaN(numeroAtual)) {
         proximoNumero = numeroAtual + 1;
       }
@@ -403,11 +396,11 @@ app.post('/api/senhas', verificarToken, async (req, res) => {
     
     // Formatar o número com prefixo do tipo e zeros à esquerda
     const numeroFormatado = `${tipo}${String(proximoNumero).padStart(3, '0')}`;
-    console.log(`Gerando nova senha: ${numeroFormatado} para tipo: ${tipo}`);
+    console.log(`Gerando nova senha: ${numeroFormatado} para tipo: ${tipo} para usuário: ${userId}`);
     
     const senha = {
       _id: uuidv4(),
-      userId: req.userId,
+      userId, // Sempre usar o ID do usuário autenticado
       tipo: tipo,
       numero: numeroFormatado,
       createdAt: new Date().toISOString(),
@@ -419,7 +412,7 @@ app.post('/api/senhas', verificarToken, async (req, res) => {
     };
 
     await senhas.insertOne(senha);
-    console.log('Senha criada com sucesso:', senha._id, senha.numero);
+    console.log('Senha criada com sucesso:', senha._id, senha.numero, 'para usuário:', userId);
     
     res.status(201).json(senha);
   } catch (error) {
@@ -449,7 +442,8 @@ app.get('/api/senhas', verificarToken, async (req, res) => {
 
 app.get('/api/senhas/aguardando', verificarToken, async (req, res) => {
   try {
-    console.log('Buscando senhas aguardando para usuário:', req.userId);
+    const userId = req.userId; // Sempre usar o ID do usuário autenticado
+    console.log('Buscando senhas aguardando para usuário:', userId);
     const senhas = db.collection('senhas');
     
     // Verificar se há parâmetros de status na requisição
@@ -473,11 +467,11 @@ app.get('/api/senhas/aguardando', verificarToken, async (req, res) => {
     console.log('Filtro de status:', statusFilter);
     
     const senhasEncontradas = await senhas.find({ 
-      userId: req.userId,
+      userId, // Filtrar estritamente pelo usuário autenticado
       status: statusFilter 
     }).toArray();
     
-    console.log(`Encontradas ${senhasEncontradas.length} senhas com os status selecionados`);
+    console.log(`Encontradas ${senhasEncontradas.length} senhas com os status selecionados para usuário ${userId}`);
     res.json(senhasEncontradas);
   } catch (error) {
     console.error('Erro ao buscar senhas aguardando:', error);
@@ -492,16 +486,33 @@ app.put('/api/senhas/:id', verificarToken, async (req, res) => {
   try {
     const { id } = req.params;
     const updates = req.body;
+    const userId = req.userId; // Sempre usar o ID do usuário autenticado
     
     if (!id) {
       return res.status(400).json({ message: 'ID da senha é obrigatório' });
     }
 
-    console.log('Atualizando senha:', id, updates);
+    console.log('Atualizando senha:', id, updates, 'para usuário:', userId);
     const senhas = db.collection('senhas');
     
+    // Verificar se o usuário é dono da senha antes de atualizar
+    const senhaExistente = await senhas.findOne({ _id: id });
+    if (!senhaExistente) {
+      return res.status(404).json({ message: 'Senha não encontrada' });
+    }
+    
+    if (senhaExistente.userId !== userId) {
+      console.error('Tentativa de atualização não autorizada. Usuário:', userId, 'Senha pertence a:', senhaExistente.userId);
+      return res.status(403).json({ message: 'Você não tem permissão para atualizar esta senha' });
+    }
+    
+    // Garantir que o userId não seja alterado na atualização
+    if (updates.userId && updates.userId !== userId) {
+      delete updates.userId;
+    }
+    
     const result = await senhas.updateOne(
-      { _id: id, userId: req.userId },
+      { _id: id, userId },
       { $set: updates }
     );
     
@@ -510,7 +521,7 @@ app.put('/api/senhas/:id', verificarToken, async (req, res) => {
     }
     
     const senhaAtualizada = await senhas.findOne({ _id: id });
-    console.log('Senha atualizada com sucesso:', id);
+    console.log('Senha atualizada com sucesso:', id, 'para usuário:', userId);
     res.json(senhaAtualizada);
   } catch (error) {
     console.error('Erro ao atualizar senha:', error);
@@ -524,7 +535,8 @@ app.put('/api/senhas/:id', verificarToken, async (req, res) => {
 // Rota para estatísticas
 app.get('/api/estatisticas', verificarToken, async (req, res) => {
   try {
-    console.log('Buscando estatísticas para usuário:', req.userId);
+    const userId = req.userId; // Sempre usar o ID do usuário autenticado
+    console.log('Buscando estatísticas para usuário:', userId);
     const senhas = db.collection('senhas');
     
     const hoje = new Date();
@@ -537,24 +549,79 @@ app.get('/api/estatisticas', verificarToken, async (req, res) => {
       senhasChamadas,
       senhasFinalizadas
     ] = await Promise.all([
-      senhas.countDocuments({ userId: req.userId }),
+      senhas.countDocuments({ userId }),
       senhas.countDocuments({ 
-        userId: req.userId,
+        userId,
         createdAt: { $gte: hoje.toISOString() }
       }),
       senhas.countDocuments({ 
-        userId: req.userId,
+        userId,
         status: 'aguardando'
       }),
       senhas.countDocuments({ 
-        userId: req.userId,
+        userId,
         status: 'chamada'
       }),
       senhas.countDocuments({ 
-        userId: req.userId,
+        userId,
         status: 'finalizada'
       })
     ]);
+
+    // Calcular tempo médio de espera (do momento de geração até chamada)
+    const senhasFinalizadasComHorarios = await senhas.find({
+      userId,
+      status: 'finalizada',
+      horarioGeracao: { $exists: true },
+      horarioChamada: { $exists: true }
+    }).toArray();
+
+    let tempoMedioEspera = 0;
+    let tempoMedioAtendimento = 0;
+
+    if (senhasFinalizadasComHorarios.length > 0) {
+      let somaTempoEspera = 0;
+      let somaTempoAtendimento = 0;
+      let contadorValidos = 0;
+
+      senhasFinalizadasComHorarios.forEach(senha => {
+        if (senha.horarioGeracao && senha.horarioChamada) {
+          const geracaoDate = new Date(senha.horarioGeracao);
+          const chamadaDate = new Date(senha.horarioChamada);
+          
+          if (geracaoDate && chamadaDate && !isNaN(geracaoDate) && !isNaN(chamadaDate)) {
+            const tempoEsperaMs = chamadaDate - geracaoDate;
+            somaTempoEspera += tempoEsperaMs;
+            
+            if (senha.horarioFinalizacao) {
+              const finalizacaoDate = new Date(senha.horarioFinalizacao);
+              if (finalizacaoDate && !isNaN(finalizacaoDate)) {
+                const tempoAtendimentoMs = finalizacaoDate - chamadaDate;
+                somaTempoAtendimento += tempoAtendimentoMs;
+              }
+            }
+            
+            contadorValidos++;
+          }
+        }
+      });
+
+      if (contadorValidos > 0) {
+        tempoMedioEspera = Math.round(somaTempoEspera / contadorValidos / 1000); // em segundos
+        tempoMedioAtendimento = Math.round(somaTempoAtendimento / contadorValidos / 1000); // em segundos
+      }
+    }
+
+    // Buscar senhas por tipo para o usuário atual
+    const resultadoAgregacao = await senhas.aggregate([
+      { $match: { userId } },
+      { $group: { _id: "$tipo", count: { $sum: 1 } } }
+    ]).toArray();
+
+    const senhasPorTipo = {};
+    resultadoAgregacao.forEach(item => {
+      senhasPorTipo[item._id] = item.count;
+    });
 
     const estatisticas = {
       totalSenhas,
@@ -562,11 +629,12 @@ app.get('/api/estatisticas', verificarToken, async (req, res) => {
       senhasAguardando,
       senhasChamadas,
       senhasFinalizadas,
-      tempoMedioEspera: 0, // TODO: Implementar cálculo
-      senhasPorTipo: {} // TODO: Implementar agregação
+      tempoMedioEspera,
+      tempoMedioAtendimento,
+      senhasPorTipo
     };
 
-    console.log('Estatísticas encontradas:', estatisticas);
+    console.log('Estatísticas encontradas para usuário:', userId, estatisticas);
     res.json(estatisticas);
   } catch (error) {
     console.error('Erro ao buscar estatísticas:', error);
