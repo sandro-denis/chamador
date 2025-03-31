@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { resolve } from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -15,15 +16,24 @@ export default defineConfig({
       }
     }
   },
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, './src')
+    }
+  },
   build: {
+    outDir: 'dist',
     rollupOptions: {
       external: ['mongodb'],
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom', 'axios']
+          vendor: ['react', 'react-dom', 'react-router-dom']
         }
       }
     }
+  },
+  define: {
+    'process.env': {}
   },
   optimizeDeps: {
     include: ['axios'],

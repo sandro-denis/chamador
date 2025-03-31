@@ -1,6 +1,5 @@
 import axios from 'axios';
-
-const API_URL = '/api';
+import API_URL from './api';
 
 // Função para obter o token JWT
 const getToken = () => {
@@ -18,7 +17,7 @@ export const getCurrentUser = async () => {
     const token = getToken();
     if (!token) return null;
 
-    const response = await axios.get(`${API_URL}/me`, {
+    const response = await axios.get(`${API_URL}/api/me`, {
       headers: { Authorization: `Bearer ${token}` }
     });
     return response.data;
@@ -35,7 +34,7 @@ export const updateUserConfig = async (config) => {
     if (!token) throw new Error('Usuário não autenticado');
 
     const response = await axios.put(
-      `${API_URL}/me/config`,
+      `${API_URL}/api/me/config`,
       { config },
       { headers: { Authorization: `Bearer ${token}` } }
     );
@@ -49,7 +48,7 @@ export const updateUserConfig = async (config) => {
 // Função para verificar conectividade com o servidor
 export const verificarConectividade = async () => {
   try {
-    await axios.get(`${API_URL}/check-connection`);
+    await axios.get(`${API_URL}/api/check-connection`);
     return true;
   } catch (error) {
     console.warn('Erro ao verificar conectividade:', error);
@@ -80,7 +79,7 @@ export const login = async (email, password) => {
       // Verificar conectividade com o servidor antes de tentar login
       await verificarConectividade();
       
-      const response = await axios.post(`${API_URL}/login`, {
+      const response = await axios.post(`${API_URL}/api/login`, {
         email: trimmedEmail,
         password: trimmedPassword
       });
@@ -140,7 +139,7 @@ export const register = async (email, password, companyName) => {
       passwordLength: trimmedPassword.length
     });
     
-    const response = await axios.post(`${API_URL}/register`, {
+    const response = await axios.post(`${API_URL}/api/register`, {
       email: trimmedEmail,
       password: trimmedPassword,
       companyName: trimmedCompanyName
@@ -165,7 +164,7 @@ export const logout = async () => {
   try {
     const token = getToken();
     if (token) {
-      await axios.post(`${API_URL}/logout`, {}, {
+      await axios.post(`${API_URL}/api/logout`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
     }
@@ -183,7 +182,7 @@ export const criarSenha = async (tipo) => {
     if (!token) throw new Error('Usuário não autenticado');
 
     const response = await axios.post(
-      `${API_URL}/senhas`,
+      `${API_URL}/api/senhas`,
       { tipo },
       { headers: { Authorization: `Bearer ${token}` } }
     );
@@ -228,7 +227,7 @@ export const buscarSenhasAguardando = async (params = {}) => {
     
     console.log('Enviando requisição com parâmetros:', requestParams);
     
-    const response = await axios.get(`${API_URL}/senhas/aguardando`, {
+    const response = await axios.get(`${API_URL}/api/senhas/aguardando`, {
       params: requestParams,
       headers: { Authorization: `Bearer ${token}` }
     });
@@ -254,7 +253,7 @@ export const atualizarStatusSenha = async (senhaId, status, guiche = null) => {
     };
 
     const response = await axios.put(
-      `${API_URL}/senhas/${senhaId}`,
+      `${API_URL}/api/senhas/${senhaId}`,
       updates,
       { headers: { Authorization: `Bearer ${token}` } }
     );
@@ -272,7 +271,7 @@ export const buscarEstatisticas = async (dataInicio, dataFim) => {
     const token = getToken();
     if (!token) throw new Error('Usuário não autenticado');
 
-    const response = await axios.get(`${API_URL}/estatisticas`, {
+    const response = await axios.get(`${API_URL}/api/estatisticas`, {
       params: { dataInicio, dataFim },
       headers: { Authorization: `Bearer ${token}` }
     });
