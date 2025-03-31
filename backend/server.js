@@ -22,7 +22,7 @@ console.log('Todas as variáveis de ambiente disponíveis:', {
 if (!process.env.MONGODB_URI) {
   console.error('ERRO: MONGODB_URI não está definido nas variáveis de ambiente');
   console.log('Tentando usar URI de fallback para desenvolvimento...');
-  process.env.MONGODB_URI = 'mongodb+srv://sandro:Sandro2010.@seu-cluster.mongodb.net/chamadorSenhas?retryWrites=true&w=majority';
+  process.env.MONGODB_URI = 'mongodb+srv://sandrod:Sandro2010.@cluster0.qzdji8m.mongodb.net/chamadorSenhas?retryWrites=true&w=majority&appName=Cluster0';
 }
 
 if (!process.env.JWT_SECRET) {
