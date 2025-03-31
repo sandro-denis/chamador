@@ -22,7 +22,7 @@ console.log('Todas as variáveis de ambiente disponíveis:', {
 if (!process.env.MONGODB_URI) {
   console.error('ERRO: MONGODB_URI não está definido nas variáveis de ambiente');
   console.log('Tentando usar URI de fallback para desenvolvimento...');
-  process.env.MONGODB_URI = 'mongodb+srv://sandrod:Sandro2010.@cluster0.qzdji8m.mongodb.net/chamadorSenhas?retryWrites=true&w=majority&appName=Cluster0';
+  process.env.MONGODB_URI = 'mongodb+srv://sandrod:Sandro2010.@cluster0.qzdji8m.mongodb.net/chamadorSenhas?retryWrites=true&w=majority';
 }
 
 if (!process.env.JWT_SECRET) {
@@ -33,16 +33,17 @@ if (!process.env.JWT_SECRET) {
 const app = express();
 const port = process.env.PORT || 3005;
 
-const corsOptions = {
-  origin: [
-    'http://localhost:3000',
-    'https://chamador.vercel.app'
-  ],
+// Configuração do CORS
+app.use(cors({
+  origin: ['http://localhost:3000', 'https://chamador-senhas.vercel.app'],
   credentials: true,
-  optionsSuccessStatus: 200
-};
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
-app.use(cors(corsOptions));
+// Middleware para processar JSON
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Função para encontrar uma porta disponível
 const findAvailablePort = async (startPort) => {
@@ -62,7 +63,6 @@ const findAvailablePort = async (startPort) => {
     });
   });
 };
-app.use(express.json());
 
 // MongoDB connection
 const uri = process.env.MONGODB_URI;
@@ -78,8 +78,12 @@ async function connectToMongoDB() {
     console.log('Database:', dbName);
     
     client = new MongoClient(uri, {
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 10000, // Aumentando o timeout para 10 segundos
       socketTimeoutMS: 45000,
+      connectTimeoutMS: 10000,
+      maxPoolSize: 50,
+      retryWrites: true,
+      w: 'majority'
     });
     
     await client.connect();
@@ -124,21 +128,11 @@ async function connectToMongoDB() {
 
 // Middleware para verificar conexão com o banco
 app.use(async (req, res, next) => {
-  try {
-    if (!db) {
-      console.log('Banco de dados não inicializado, tentando conectar...');
-      await connectToMongoDB();
-    }
-    // Disponibilizar o objeto db para as rotas
-    app.locals.db = db;
-    next();
-  } catch (error) {
-    console.error('Erro detalhado de conexão com o banco:', error);
-    res.status(500).json({ 
-      message: 'Erro de conexão com o banco de dados',
-      error: error.message 
-    });
+  if (!db) {
+    console.error('Banco de dados não está conectado');
+    return res.status(500).json({ message: 'Erro de conexão com o banco de dados' });
   }
+  next();
 });
 
 // Middleware para verificar campos obrigatórios
@@ -174,7 +168,10 @@ const verificarToken = (req, res, next) => {
 // Rotas de autenticação
 app.post('/api/register', validateFields, async (req, res) => {
   try {
-    console.log('Recebida requisição de registro:', { email: req.body.email, companyName: req.body.companyName });
+    console.log('Recebida requisição de registro:', { 
+      email: req.body.email, 
+      companyName: req.body.companyName 
+    });
     const { email, password, companyName } = req.body;
 
     if (!companyName) {
@@ -570,25 +567,8 @@ app.get('/api/estatisticas', verificarToken, async (req, res) => {
 app.use('/api', limparDadosRouter);
 
 // Rota para verificar conectividade
-app.get('/api/check-connection', async (req, res) => {
-  try {
-    const collections = await db.listCollections().toArray();
-    const users = await db.collection('users').find().toArray();
-    
-    res.json({
-      status: 'ok',
-      message: 'Conexão com MongoDB estabelecida',
-      collections: collections.map(c => c.name),
-      usersCount: users.length
-    });
-  } catch (error) {
-    console.error('Erro ao verificar conexão:', error);
-    res.status(500).json({
-      status: 'error',
-      message: 'Erro ao verificar conexão com MongoDB',
-      error: error.message
-    });
-  }
+app.get('/api/check-connection', (req, res) => {
+  res.json({ status: 'ok', message: 'Servidor está online' });
 });
 
 // Rota para obter informações do usuário atual
