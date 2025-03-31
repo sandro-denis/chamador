@@ -10,25 +10,24 @@ import limparDadosRouter from './routes/limparDados.js';
 // Carregar variáveis de ambiente
 dotenv.config();
 
-// Verificar se o arquivo .env foi carregado corretamente
-console.log('Variáveis de ambiente completas:', {
+// Log de todas as variáveis de ambiente (exceto senhas)
+console.log('Todas as variáveis de ambiente disponíveis:', {
+  NODE_ENV: process.env.NODE_ENV,
   JWT_SECRET: process.env.JWT_SECRET ? 'Definido' : 'Não definido',
-  MONGODB_URI: process.env.MONGODB_URI || 'Não definido',
-  NODE_ENV: process.env.NODE_ENV || 'development'
+  MONGODB_URI: process.env.MONGODB_URI ? 'Definido' : 'Não definido',
+  PORT: process.env.PORT,
 });
 
+// Verificar variáveis de ambiente essenciais
 if (!process.env.MONGODB_URI) {
   console.error('ERRO: MONGODB_URI não está definido nas variáveis de ambiente');
-  process.exit(1);
+  console.log('Tentando usar URI de fallback para desenvolvimento...');
+  process.env.MONGODB_URI = 'mongodb+srv://sandro:Sandro2010.@seu-cluster.mongodb.net/chamadorSenhas?retryWrites=true&w=majority';
 }
 
-// Verificar se as variáveis de ambiente essenciais estão definidas
 if (!process.env.JWT_SECRET) {
-  console.error('ERRO: JWT_SECRET não está definido no arquivo .env');
-  console.error('Por favor, verifique se o arquivo .env contém JWT_SECRET=chamadorSenhasSecretKey2024');
-  // Definir um valor padrão para JWT_SECRET em caso de falha na leitura do .env
-  process.env.JWT_SECRET = 'chamadorSenhasSecretKey2024';
-  console.log('JWT_SECRET definido com valor padrão como fallback');
+  console.log('JWT_SECRET não definido, usando valor padrão para desenvolvimento');
+  process.env.JWT_SECRET = 'sua_chave_secreta_padrao';
 }
 
 const app = express();
