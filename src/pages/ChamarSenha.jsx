@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import styled from 'styled-components'
 import { useSenha } from '../context/SenhaContext'
+import { useAuth } from '../context/AuthContext'
 
 const Container = styled.div`
   display: flex;
@@ -281,6 +282,7 @@ const SenhaInfo = styled.span`
 
 const ChamarSenha = () => {
   const { TIPOS_SENHA, chamarProximaSenha, finalizarAtendimento, getSenhasPorStatus } = useSenha()
+  const { user } = useAuth()
   const [guicheAtual, setGuicheAtual] = useState('1')
   const [senhaChamada, setSenhaChamada] = useState(null)
   const [senhasAguardando, setSenhasAguardando] = useState([])
@@ -297,7 +299,10 @@ const ChamarSenha = () => {
     // Atualizar o localStorage para garantir persistência
     // Combina as senhas aguardando e em atendimento para salvar no localStorage
     const todasSenhas = [...senhas, ...senhasAtendimento]
-    localStorage.setItem('senhas_sistema', JSON.stringify(todasSenhas))
+    
+    // Usar o ID do usuário para isolar os dados no localStorage
+    const userId = user?._id || 'guest'
+    localStorage.setItem(`senhas_sistema_${userId}`, JSON.stringify(todasSenhas))
   }
   
   // Atualiza a lista de senhas aguardando e em atendimento a cada 1 segundo para maior responsividade
@@ -336,9 +341,13 @@ const ChamarSenha = () => {
     const handleStorageChange = (e) => {
       if (e.key === 'painelConfig') {
         setConfig(JSON.parse(e.newValue))
-      } else if (e.key === 'senhas_sistema') {
+      } else if (e.key && e.key.startsWith('senhas_sistema_')) {
         // Força atualização das senhas quando o localStorage for atualizado em outra aba
-        atualizarFila()
+        // Verifica se a chave corresponde ao usuário atual
+        const userId = user?._id || 'guest'
+        if (e.key === `senhas_sistema_${userId}`) {
+          atualizarFila()
+        }
       }
     }
     
@@ -465,8 +474,9 @@ const ChamarSenha = () => {
             // Atualiza a lista de senhas aguardando
             setSenhasAguardando(getSenhasPorStatus('aguardando'))
             // Força uma atualização do localStorage para disparar o evento storage em outras abas
-            const senhasAtuais = JSON.parse(localStorage.getItem('senhas_sistema'))
-            localStorage.setItem('senhas_sistema', JSON.stringify(senhasAtuais))
+            const userId = user?._id || 'guest'
+            const senhasAtuais = JSON.parse(localStorage.getItem(`senhas_sistema_${userId}`) || '[]')
+            localStorage.setItem(`senhas_sistema_${userId}`, JSON.stringify(senhasAtuais))
             
             // Primeiro tenta anunciar a senha usando síntese de voz
             const voiceSuccess = anunciarSenha(senha)
@@ -496,8 +506,9 @@ const ChamarSenha = () => {
           // Atualiza as listas de senhas
           atualizarFila()
           // Força uma atualização do localStorage para disparar o evento storage em outras abas
-          const senhasAtuais = JSON.parse(localStorage.getItem('senhas_sistema')) || []
-          localStorage.setItem('senhas_sistema', JSON.stringify(senhasAtuais))
+          const userId = user?._id || 'guest'
+          const senhasAtuais = JSON.parse(localStorage.getItem(`senhas_sistema_${userId}`)) || []
+          localStorage.setItem(`senhas_sistema_${userId}`, JSON.stringify(senhasAtuais))
         })
         .catch(error => {
           console.error('Erro ao finalizar atendimento:', error)
