@@ -388,11 +388,10 @@ export const SenhaProvider = ({ children }) => {
     // Obter o ID do usuário atual
     const currentUserId = user?._id || 'guest';
     
-    // Filtrar senhas pelo status informado E pelo usuário atual
+    // Filtrar senhas pelo status informado
+    // Não filtramos pelo usuário aqui, pois isso está causando o problema de dados sumindo
     return senhas.filter(senha => {
-      // Verificar se a senha pertence ao usuário atual
-      const senhaUserId = senha.userId || 'guest';
-      return statusArray.includes(senha.status) && senhaUserId === currentUserId;
+      return statusArray.includes(senha.status);
     });
   }
 
