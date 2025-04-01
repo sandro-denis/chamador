@@ -372,6 +372,7 @@ const GerarSenha = () => {
   const handleConfirm = async () => {
     try {
       setIsLoading(true) // Indica que está carregando
+      setShowConfirm(false) // Fecha o diálogo de confirmação imediatamente para evitar múltiplos cliques
       
       // Verifica se o usuário está autenticado
       if (!user) {
@@ -396,193 +397,63 @@ const GerarSenha = () => {
       
       console.log('Iniciando geração de senha do tipo:', selectedTipo)
       
-      // Tenta gerar a senha com sistema de retry aprimorado
-      let tentativas = 0
-      let novaSenha = null
-      let ultimoErro = null
-      const maxTentativas = 3
-      
-      while (tentativas < maxTentativas && !novaSenha) {
-        try {
-          console.log(`Tentativa ${tentativas + 1} de gerar senha...`)
-          // Captura explicitamente apenas o valor retornado, não a função
-          const resultado = await gerarSenha(selectedTipo)
-          novaSenha = resultado
-          
-          console.log('Resultado da geração:', novaSenha ? 'Sucesso' : 'Falha')
-          
-          // Verifica se o resultado é válido
-          if (novaSenha && typeof novaSenha === 'object') {
-            console.log('Detalhes da senha gerada:', JSON.stringify(novaSenha))
-            break // Sai do loop se tiver sucesso
-          } else {
-            novaSenha = null // Reseta se o resultado não for válido
-            console.error('Resultado inválido recebido:', resultado)
-          }
-          
-          tentativas++
-          
-          if (tentativas < maxTentativas && !novaSenha) {
-            // Espera um pouco antes de tentar novamente (tempo crescente)
-            const tempoEspera = 500 * tentativas
-            console.log(`Tentativa ${tentativas} falhou, aguardando ${tempoEspera}ms antes de tentar novamente...`)
-            await new Promise(resolve => setTimeout(resolve, tempoEspera))
-          }
-        } catch (err) {
-          ultimoErro = err
-          console.error(`Erro detalhado na tentativa ${tentativas + 1}:`, err)
-          tentativas++
-          
-          if (tentativas < maxTentativas) {
-            // Espera um pouco antes de tentar novamente (tempo crescente)
-            const tempoEspera = 500 * tentativas
-            console.log(`Aguardando ${tempoEspera}ms antes da próxima tentativa...`)
-            await new Promise(resolve => setTimeout(resolve, tempoEspera))
-          }
-        }
-      }
-      
-      if (novaSenha) {
-        // Verificar se o objeto novaSenha tem a propriedade numero ou _id
-        if (novaSenha.numero !== undefined) {
-          console.log('Senha gerada com sucesso:', novaSenha.numero)
-        } else if (novaSenha._id !== undefined) {
-          console.log('Senha gerada com sucesso:', novaSenha._id)
-          // Garantir que a propriedade numero existe para compatibilidade
-          novaSenha.numero = novaSenha._id
-        } else {
-          console.log('Senha gerada com sucesso, mas sem identificador definido:', novaSenha)
-          // Se não tiver identificador definido, não devemos continuar o processo
-          throw new Error('Senha gerada sem identificador definido')
+      // Simplificamos o sistema de retry para evitar problemas
+      try {
+        // Fazemos uma única chamada para gerarSenha
+        console.log(`Fazendo requisição para gerar senha do tipo: ${selectedTipo}`);
+        const novaSenha = await gerarSenha(selectedTipo);
+        console.log('Resposta completa da geração:', novaSenha);
+        
+        if (!novaSenha) {
+          throw new Error('Não foi possível gerar a senha. Resposta vazia do servidor.');
         }
         
-        // Garantir que a propriedade horarioGeracao existe
-        if (!novaSenha.horarioGeracao) {
-          console.log('Adicionando horarioGeracao à senha')
-          try {
-            novaSenha.horarioGeracao = novaSenha.createdAt || new Date().toISOString()
-            console.log('horarioGeracao adicionado com sucesso:', novaSenha.horarioGeracao)
-          } catch (err) {
-            console.error('Erro ao adicionar horarioGeracao:', err)
-            // Criar uma cópia do objeto para evitar problemas de mutabilidade
-            novaSenha = { ...novaSenha, horarioGeracao: novaSenha.createdAt || new Date().toISOString() }
-            console.log('Objeto novaSenha recriado com horarioGeracao')
-          }
+        // Verificamos se a resposta é um objeto válido
+        if (typeof novaSenha !== 'object') {
+          console.error('Resultado inválido recebido:', novaSenha);
+          throw new Error('Formato de resposta inválido do servidor.');
         }
-        setUltimaSenhaGerada(novaSenha)
-        setShowConfirm(false)
         
-        // Reproduz o som de geração com base nas configurações
+        console.log('Senha gerada com sucesso:', novaSenha.numero || novaSenha._id);
+        
+        // Se chegou aqui, a senha foi gerada com sucesso
+        // Não precisamos fazer mais nada pois o contexto já atualizou o estado
+        
+        // Reproduz o som se configurado
         if (config.soundEffect && config.soundEffect !== 'none') {
           try {
-            // Corrigindo o caminho para acessar os arquivos na pasta public
-            const soundPath = `/assets/${config.soundEffect}.mp3`
-            console.log('Tentando reproduzir som:', soundPath)
-            const audio = new Audio(soundPath)
-            audio.volume = (config.volume || 80) / 100 // Converte porcentagem para valor entre 0 e 1
-            
-            // Pré-carrega o áudio
-            audio.load()
-            
-            // Múltiplas estratégias para garantir a reprodução
-            const playSound = () => {
-              console.log('Tentando reproduzir áudio de geração...')
-              const playPromise = audio.play()
-              
-              if (playPromise !== undefined) {
-                playPromise
-                  .then(() => {
-                    console.log('Som de geração reproduzido com sucesso')
-                  })
-                  .catch(e => {
-                    console.error('Erro ao reproduzir som de geração:', e)
-                    
-                    // Verifica se o erro é por falta de interação do usuário
-                    if (e.name === 'NotAllowedError') {
-                      console.log('Erro de permissão, tentando com interação do usuário')
-                      // Tenta novamente com interação do usuário simulada
-                      document.addEventListener('click', () => {
-                        audio.play().catch(err => console.error('Falha na segunda tentativa:', err))
-                      }, { once: true })
-                    } else if (e.name === 'NotSupportedError') {
-                      console.error('Formato de áudio não suportado ou arquivo não encontrado')
-                      // Tenta com um arquivo de fallback
-                      const fallbackAudio = new Audio('/assets/beep.mp3')
-                      fallbackAudio.volume = (config.volume || 80) / 100
-                      fallbackAudio.play().catch(err => console.error('Erro no fallback:', err))
-                    }
-                  })
-              }
-            }
-            
-            // Tenta reproduzir quando o áudio estiver carregado
-            audio.addEventListener('canplaythrough', playSound, { once: true })
-            
-            // Adiciona handler para erros de carregamento
-            audio.addEventListener('error', (e) => {
-              console.error('Erro ao carregar áudio:', e)
-              // Tenta com um arquivo de fallback em caso de erro
-              const fallbackAudio = new Audio('/assets/beep.mp3')
-              fallbackAudio.volume = (config.volume || 80) / 100
-              fallbackAudio.play().catch(err => console.error('Erro no fallback:', err))
-            }, { once: true })
-            
-            // Fallback se o evento não disparar
-            setTimeout(() => {
-              if (audio.readyState >= 3) { // HAVE_FUTURE_DATA ou HAVE_ENOUGH_DATA
-                playSound()
-              } else {
-                console.log('Áudio não carregado completamente, tentando mesmo assim')
-                playSound()
-              }
-            }, 300)
+            const soundPath = `/assets/${config.soundEffect}.mp3`;
+            const audio = new Audio(soundPath);
+            audio.volume = (config.volume || 80) / 100;
+            audio.play().catch(err => console.error('Erro ao reproduzir som:', err));
           } catch (error) {
-            console.log('Erro ao criar objeto de áudio:', error)
-          }
-        }
-      } else {
-        console.error(`Não foi possível gerar a senha após ${maxTentativas} tentativas`)
-        
-        // Mensagem de erro mais específica baseada no último erro capturado
-        let mensagemErro = 'Não foi possível gerar a senha. Tentando novamente automaticamente...'
-        
-        if (ultimoErro) {
-          console.error('Último erro capturado:', ultimoErro)
-          
-          if (ultimoErro.message === 'Usuário não autenticado') {
-            mensagemErro = 'Você precisa estar logado para gerar senhas. Faça login novamente.'
-          } else if (ultimoErro.code === 'permission-denied') {
-            mensagemErro = 'Você não tem permissão para gerar senhas. Faça login novamente.'
-          } else if (ultimoErro.code === 'unavailable' || ultimoErro.code === 'network-request-failed') {
-            mensagemErro = 'Erro de conexão com o servidor. O sistema tentará novamente automaticamente. Se o problema persistir, verifique sua conexão Wi-Fi ou dados móveis.'
-          } else if (ultimoErro.code === 'resource-exhausted') {
-            mensagemErro = 'Limite de senhas atingido. Tente novamente mais tarde.'
-          } else if (ultimoErro.message === 'Sem conexão com o servidor') {
-            mensagemErro = 'Não foi possível conectar ao servidor. Verifique sua conexão com a internet e tente novamente.'
+            console.error('Erro ao criar objeto de áudio:', error);
           }
         }
         
-        alert(mensagemErro)
+      } catch (error) {
+        console.error('Erro ao gerar senha:', error);
+        
+        // Mensagem de erro mais específica baseada no tipo de erro
+        let mensagemErro = 'Erro ao gerar senha. Tente novamente.';
+        
+        if (error.message === 'Usuário não autenticado') {
+          mensagemErro = 'Você precisa estar logado para gerar senhas. Faça login novamente.';
+        } else if (error.code === 'permission-denied') {
+          mensagemErro = 'Você não tem permissão para gerar senhas. Faça login novamente.';
+        } else if (error.code === 'unavailable' || error.code === 'network-request-failed') {
+          mensagemErro = 'Erro de conexão. Verifique sua internet e tente novamente.';
+        } else if (error.code === 'resource-exhausted') {
+          mensagemErro = 'Limite de senhas atingido. Tente novamente mais tarde.';
+        }
+        
+        alert(mensagemErro);
       }
     } catch (error) {
-      console.error('Erro geral ao gerar senha:', error)
-      
-      // Mensagem de erro mais específica baseada no tipo de erro
-      let mensagemErro = 'Erro ao gerar senha. Tente novamente.'
-      
-      if (error.message === 'Usuário não autenticado') {
-        mensagemErro = 'Você precisa estar logado para gerar senhas. Faça login novamente.'
-      } else if (error.code === 'permission-denied') {
-        mensagemErro = 'Você não tem permissão para gerar senhas. Faça login novamente.'
-      } else if (error.code === 'unavailable' || error.code === 'network-request-failed') {
-        mensagemErro = 'Erro de conexão. Verifique sua internet e tente novamente.'
-      } else if (error.code === 'resource-exhausted') {
-        mensagemErro = 'Limite de senhas atingido. Tente novamente mais tarde.'
-      }
-      
-      alert(mensagemErro)
+      console.error('Erro inesperado ao gerar senha:', error);
+      alert('Ocorreu um erro inesperado. Por favor, tente novamente.');
     } finally {
-      setIsLoading(false) // Finaliza o carregamento independente do resultado
+      setIsLoading(false); // Finaliza o carregamento independente do resultado
     }
   }
   

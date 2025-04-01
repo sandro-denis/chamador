@@ -64,45 +64,59 @@ export const SenhaProvider = ({ children }) => {
 
   // Buscar senhas aguardando periodicamente
   useEffect(() => {
-    if (!isAuthenticated || !user) return
+    if (!isAuthenticated && !window.location.pathname.includes('publico')) return;
 
     const fetchSenhas = async () => {
       try {
-        setLoading(true)
-        console.log('Buscando senhas aguardando e chamadas para usuário:', user._id)
+        setLoading(true);
+        
+        // Obter ID do usuário com fallback para 'guest'
+        const currentUserId = user && user._id ? user._id : 'guest';
+        console.log('Buscando senhas aguardando e chamadas para usuário:', currentUserId);
         
         // Criar parâmetros para a requisição - buscar aguardando, chamadas e finalizadas
         const params = { 
-          status: ['aguardando', 'chamada', 'finalizada'],
-          userId: user._id
+          status: ['aguardando', 'chamada', 'finalizada']
         };
         
+        // Adicionar userId apenas se estiver autenticado
+        if (isAuthenticated && currentUserId !== 'guest') {
+          params.userId = currentUserId;
+        }
+        
+        console.log('Enviando requisição com parâmetros:', params);
+        
         // Buscar senhas atualizadas do servidor
-        const data = await buscarSenhasAguardando(params)
-        console.log('Senhas recebidas do servidor:', data)
+        const data = await buscarSenhasAguardando(params);
+        console.log('Senhas recebidas do servidor:', Array.isArray(data) ? data.length : 'Resposta inválida');
         
         if (Array.isArray(data)) {
           // Atualizar senhas no estado
           setSenhas(prev => {
             // Filtrar senhas por status para garantir que não haja perda de informações
-            const senhasAguardando = data.filter(s => s.status === 'aguardando')
-            const senhasChamadas = data.filter(s => s.status === 'chamada')
-            const senhasFinalizadasNovas = data.filter(s => s.status === 'finalizada')
+            const senhasAguardando = data.filter(s => s.status === 'aguardando');
+            const senhasChamadas = data.filter(s => s.status === 'chamada');
+            const senhasFinalizadasNovas = data.filter(s => s.status === 'finalizada');
             
             // Manter senhas finalizadas que já estão no estado e não estão nos dados recebidos
             const senhasFinalizadasExistentes = prev.filter(s => 
               s.status === 'finalizada' && 
               !senhasFinalizadasNovas.some(nova => nova._id === s._id)
-            )
+            );
             
             // Combinar todas as senhas
-            const combinedSenhas = [...senhasAguardando, ...senhasChamadas, ...senhasFinalizadasNovas, ...senhasFinalizadasExistentes]
+            const combinedSenhas = [
+              ...senhasAguardando, 
+              ...senhasChamadas, 
+              ...senhasFinalizadasNovas, 
+              ...senhasFinalizadasExistentes
+            ];
             
             // Remover duplicatas (manter a versão mais recente)
             const uniqueSenhas = combinedSenhas.reduce((acc, current) => {
-              const x = acc.find(item => item._id === current._id)
+              const x = acc.find(item => item._id === current._id);
               if (!x) {
-                return acc.concat([current])
+                return acc.concat([current]);
               } else {
                 // Se a senha já existe, manter a versão mais recente
                 // Prioridade: finalizada > chamada > aguardando
@@ -110,46 +124,45 @@ export const SenhaProvider = ({ children }) => {
                   (current.status === 'finalizada') || 
                   (current.status === 'chamada' && x.status !== 'finalizada')
                 ) {
-                  return acc.map(item => item._id === current._id ? current : item)
+                  return acc.map(item => item._id === current._id ? current : item);
                 }
-                return acc
+                return acc;
               }
-            }, [])
+            }, []);
             
             // Armazenar todas as senhas no localStorage com o ID do usuário
-            const userId = user._id || 'guest'
-            localStorage.setItem(`senhas_sistema_${userId}`, JSON.stringify(uniqueSenhas))
+            localStorage.setItem(`senhas_sistema_${currentUserId}`, JSON.stringify(uniqueSenhas));
             
             // Armazenar timestamp para detecção de mudanças
-            localStorage.setItem(`senhas_timestamp_${userId}`, Date.now().toString())
+            localStorage.setItem(`senhas_timestamp_${currentUserId}`, Date.now().toString());
             
-            return uniqueSenhas
-          })
+            return uniqueSenhas;
+          });
         }
       } catch (error) {
-        console.error('Erro ao buscar senhas:', error)
-        setError(error.message)
+        console.error('Erro ao buscar senhas:', error);
+        setError(error.message);
         // Em caso de erro, tentar usar dados do localStorage
-        const userId = user?._id || 'guest'
-        const senhasSalvas = localStorage.getItem(`senhas_sistema_${userId}`)
+        const currentUserId = user && user._id ? user._id : 'guest';
+        const senhasSalvas = localStorage.getItem(`senhas_sistema_${currentUserId}`);
         if (senhasSalvas) {
           try {
-            const parsedSenhas = JSON.parse(senhasSalvas)
-            setSenhas(parsedSenhas)
+            const parsedSenhas = JSON.parse(senhasSalvas);
+            setSenhas(parsedSenhas);
           } catch (parseError) {
-            console.error('Erro ao carregar senhas do localStorage:', parseError)
+            console.error('Erro ao carregar senhas do localStorage:', parseError);
           }
         }
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchSenhas()
-    const interval = setInterval(fetchSenhas, 3000) // Atualizar a cada 3 segundos
+    fetchSenhas();
+    const interval = setInterval(fetchSenhas, 3000); // Atualizar a cada 3 segundos
 
-    return () => clearInterval(interval)
-  }, [isAuthenticated, user])
+    return () => clearInterval(interval);
+  }, [isAuthenticated, user]);
 
   const gerarSenha = async (tipo) => {
     try {
@@ -161,11 +174,20 @@ export const SenhaProvider = ({ children }) => {
         throw new Error('Tipo de senha não definido');
       }
       
+      // Log para debug
+      console.log('Usuário atual:', user ? `${user._id} (${user.email})` : 'Não autenticado/Indefinido');
+      
+      // Criar uma cópia das propriedades do usuário que precisamos
+      const userId = user && user._id ? user._id : null;
+      
       // Passar o ID do usuário atual para a função criarSenha
-      const novaSenha = await criarSenha(tipo, user?._id)
-      console.log('Senha gerada com sucesso:', novaSenha)
+      console.log('Chamando criarSenha com:', { tipo, userId });
+      const novaSenha = await criarSenha(tipo, userId);
+      
+      console.log('Resposta da API:', novaSenha);
       
       if (!novaSenha || typeof novaSenha !== 'object') {
+        console.error('Resposta inválida da API:', novaSenha);
         throw new Error('Resposta inválida ao gerar senha');
       }
       
@@ -174,22 +196,40 @@ export const SenhaProvider = ({ children }) => {
       
       // Garantir que a senha tenha número formatado
       if (!senhaFormatada.numero && senhaFormatada.tipo) {
-        const tipo = senhaFormatada.tipo;
+        const tipoSenha = senhaFormatada.tipo;
         const numeroInt = parseInt(String(senhaFormatada._id).slice(-2), 10) || 0;
-        senhaFormatada.numero = `${tipo}${String(numeroInt).padStart(2, '0')}`;
+        senhaFormatada.numero = `${tipoSenha}${String(numeroInt).padStart(2, '0')}`;
+        console.log('Número formatado criado:', senhaFormatada.numero);
       }
       
-      // Adicionar a nova senha à lista
-      setSenhas(prev => [...prev, senhaFormatada])
-      setUltimaSenhaGerada(senhaFormatada)
+      // Garantir horarioGeracao
+      if (!senhaFormatada.horarioGeracao) {
+        senhaFormatada.horarioGeracao = senhaFormatada.createdAt || new Date().toISOString();
+      }
       
-      return senhaFormatada
+      // Adicionar a nova senha à lista - usando o operador spread para criar uma cópia
+      console.log('Adicionando senha formatada ao estado:', senhaFormatada);
+      
+      setSenhas(prevSenhas => {
+        const novaLista = [...prevSenhas, senhaFormatada];
+        console.log('Nova lista de senhas:', novaLista.length);
+        return novaLista;
+      });
+      
+      // Criar uma cópia limpa para evitar referências circulares
+      const senhaParaRetornar = { ...senhaFormatada };
+      console.log('Senha a ser retornada:', senhaParaRetornar);
+      
+      // Atualizar a última senha gerada
+      setUltimaSenhaGerada(senhaParaRetornar);
+      
+      return senhaParaRetornar;
     } catch (error) {
-      console.error('Erro ao gerar senha:', error)
-      setError(error.message || 'Erro desconhecido ao gerar senha')
-      throw error
+      console.error('Erro detalhado ao gerar senha:', error);
+      setError(error.message || 'Erro desconhecido ao gerar senha');
+      throw error;
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
