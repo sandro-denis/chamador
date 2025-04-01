@@ -380,13 +380,20 @@ export const SenhaProvider = ({ children }) => {
     }
   }
 
-  // Obter senhas por status (pode receber string ou array de status)
+  // Função para obter senhas por status (pode receber string ou array de status)
   const getSenhasPorStatus = (status) => {
     // Se status for string, converter para array
     const statusArray = Array.isArray(status) ? status : [status];
     
-    // Filtrar senhas pelo status informado
-    return senhas.filter(senha => statusArray.includes(senha.status));
+    // Obter o ID do usuário atual
+    const currentUserId = user?._id || 'guest';
+    
+    // Filtrar senhas pelo status informado E pelo usuário atual
+    return senhas.filter(senha => {
+      // Verificar se a senha pertence ao usuário atual
+      const senhaUserId = senha.userId || 'guest';
+      return statusArray.includes(senha.status) && senhaUserId === currentUserId;
+    });
   }
 
   // Função para chamar a próxima senha
