@@ -9,10 +9,14 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:3005',
+        target: 'http://localhost:3006',
         changeOrigin: true,
         secure: false,
-        rewrite: (path) => path
+        rewrite: (path) => path,
+        headers: {
+          'Access-Control-Allow-Origin': 'http://localhost:3001',
+          'Access-Control-Allow-Credentials': 'true'
+        }
       }
     }
   },

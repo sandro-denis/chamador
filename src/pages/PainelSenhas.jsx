@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import styled from 'styled-components'
+import styled, { css } from 'styled-components'
 import { useSenha } from '../context/SenhaContext'
+import layoutThemes from '../themes/layoutThemes'
 
 // Importa a constante STORAGE_KEY do contexto
 const STORAGE_KEY = 'senhas_sistema'
@@ -15,6 +16,11 @@ const Container = styled.div`
   background-position: center;
   overflow: hidden;
   font-family: ${props => props.$fontFamily || 'Arial'};
+  transition: all 0.3s ease;
+  
+  ${props => props.$layoutTheme && layoutThemes[props.$layoutTheme]?.colors?.bg && css`
+    background-color: ${props => props.$backgroundType === 'color' ? layoutThemes[props.$layoutTheme].colors.bg : props.$backgroundColor};
+  `}
 `
 
 const Header = styled.div`
@@ -28,6 +34,7 @@ const Header = styled.div`
   position: relative;
   overflow: hidden;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
   
   &::before {
     content: '';
@@ -38,6 +45,11 @@ const Header = styled.div`
     height: 3px;
     background: linear-gradient(90deg, #3498db, #2ecc71);
   }
+  
+  ${props => props.$layoutTheme && layoutThemes[props.$layoutTheme]?.colors?.header && css`
+    background: ${layoutThemes[props.$layoutTheme].colors.header};
+    color: ${layoutThemes[props.$layoutTheme].colors.headerText};
+  `}
 `
 
 const Title = styled.h1`
@@ -66,6 +78,18 @@ const PainelContainer = styled.div`
   gap: 20px;
   overflow: hidden;
   flex-wrap: wrap;
+  transition: all 0.3s ease;
+  
+  ${props => props.$layoutTheme && layoutThemes[props.$layoutTheme]?.layout?.painelContainer && css`
+    display: ${layoutThemes[props.$layoutTheme].layout.painelContainer.display || 'flex'};
+    flex-direction: ${layoutThemes[props.$layoutTheme].layout.painelContainer.flexDirection || 'row'};
+    flex-wrap: ${layoutThemes[props.$layoutTheme].layout.painelContainer.flexWrap || 'wrap'};
+    gap: ${layoutThemes[props.$layoutTheme].layout.painelContainer.gap || '20px'};
+    grid-template-columns: ${layoutThemes[props.$layoutTheme].layout.painelContainer.gridTemplateColumns || 'none'};
+    grid-template-rows: ${layoutThemes[props.$layoutTheme].layout.painelContainer.gridTemplateRows || 'none'};
+    padding: ${layoutThemes[props.$layoutTheme].layout.painelContainer.padding || '20px'};
+    height: ${layoutThemes[props.$layoutTheme].layout.painelContainer.height || 'auto'};
+  `}
 `
 
 const SenhaAtualContainer = styled.div`
@@ -80,7 +104,8 @@ const SenhaAtualContainer = styled.div`
   justify-content: center;
   overflow: hidden;
   position: relative;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: all 0.3s ease;
+  min-width: 300px;
   
   &:hover {
     transform: translateY(-5px);
@@ -96,6 +121,15 @@ const SenhaAtualContainer = styled.div`
     height: 3px;
     background: linear-gradient(90deg, #3498db, #2ecc71);
   }
+  
+  ${props => props.$layoutTheme && layoutThemes[props.$layoutTheme]?.layout?.senhaAtualContainer && css`
+    flex: ${layoutThemes[props.$layoutTheme].layout.senhaAtualContainer.flex || '2'};
+    grid-column: ${layoutThemes[props.$layoutTheme].layout.senhaAtualContainer.gridColumn || 'auto'};
+    grid-row: ${layoutThemes[props.$layoutTheme].layout.senhaAtualContainer.gridRow || 'auto'};
+    padding: ${layoutThemes[props.$layoutTheme].layout.senhaAtualContainer.padding || '25px'};
+    min-width: ${layoutThemes[props.$layoutTheme].layout.senhaAtualContainer.minWidth || '300px'};
+    border: ${layoutThemes[props.$layoutTheme].layout.senhaAtualContainer.border || 'none'};
+  `}
 `
 
 const SenhaAtualTitle = styled.h2`
@@ -145,7 +179,7 @@ const SenhasContainer = styled.div`
   display: flex;
   flex-direction: column;
   position: relative;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: all 0.3s ease;
   min-width: 300px;
   
   &:hover {
@@ -162,6 +196,17 @@ const SenhasContainer = styled.div`
     height: 3px;
     background: linear-gradient(90deg, #3498db, #2ecc71);
   }
+  
+  ${props => props.$layoutTheme && layoutThemes[props.$layoutTheme]?.layout?.senhasListContainer && css`
+    flex: ${layoutThemes[props.$layoutTheme].layout.senhasListContainer.flex || '1'};
+    grid-column: ${layoutThemes[props.$layoutTheme].layout.senhasListContainer.gridColumn || 'auto'};
+    grid-row: ${layoutThemes[props.$layoutTheme].layout.senhasListContainer.gridRow || 'auto'};
+    display: ${layoutThemes[props.$layoutTheme].layout.senhasListContainer.display || 'flex'};
+    flex-direction: ${layoutThemes[props.$layoutTheme].layout.senhasListContainer.flexDirection || 'column'};
+    gap: ${layoutThemes[props.$layoutTheme].layout.senhasListContainer.gap || 'inherit'};
+    min-width: ${layoutThemes[props.$layoutTheme].layout.senhasListContainer.minWidth || '300px'};
+    grid-template-columns: ${layoutThemes[props.$layoutTheme].layout.senhasListContainer.gridTemplateColumns || 'none'};
+  `}
 `
 
 const UltimasSenhasContainer = styled(SenhasContainer)``
@@ -252,6 +297,7 @@ const Footer = styled.div`
   position: relative;
   overflow: hidden;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+  transition: all 0.3s ease;
   
   &::after {
     content: '';
@@ -262,6 +308,11 @@ const Footer = styled.div`
     height: 3px;
     background: linear-gradient(90deg, #3498db, #2ecc71, #e74c3c);
   }
+  
+  ${props => props.$layoutTheme && layoutThemes[props.$layoutTheme]?.colors?.header && css`
+    background: ${layoutThemes[props.$layoutTheme].colors.header};
+    color: ${layoutThemes[props.$layoutTheme].colors.headerText};
+  `}
 `
 
 const Clock = styled.div`
@@ -277,6 +328,7 @@ const PainelSenhas = () => {
   const [currentTime, setCurrentTime] = useState(new Date())
   const [config, setConfig] = useState({
     theme: 'light',
+    layoutTheme: 'padrao',
     backgroundColor: '#f8f9fa',
     textColor: '#2c3e50',
     senhaColor: '#3498db',
@@ -671,8 +723,10 @@ const PainelSenhas = () => {
       $backgroundColor={config.backgroundType === 'color' ? config.backgroundColor : 'transparent'}
       $backgroundImage={config.backgroundType === 'image' ? config.backgroundImage : null}
       $fontFamily={config.fontFamily}
+      $layoutTheme={config.layoutTheme}
+      $backgroundType={config.backgroundType}
     >
-      <Header>
+      <Header $layoutTheme={config.layoutTheme}>
         {config.logo && (
           <img 
             src={config.logo} 
@@ -683,8 +737,8 @@ const PainelSenhas = () => {
         <Title>Painel de Senhas</Title>
       </Header>
       
-      <PainelContainer>
-        <SenhaAtualContainer>
+      <PainelContainer $layoutTheme={config.layoutTheme}>
+        <SenhaAtualContainer $layoutTheme={config.layoutTheme}>
           <SenhaAtualTitle $textColor={config.textColor}>Senha Atual</SenhaAtualTitle>
           
           {senhaAtual ? (
@@ -710,7 +764,7 @@ const PainelSenhas = () => {
           )}
         </SenhaAtualContainer>
         
-        <UltimasSenhasContainer>
+        <UltimasSenhasContainer $layoutTheme={config.layoutTheme}>
           <UltimasSenhasTitle>Últimas Senhas Chamadas</UltimasSenhasTitle>
           
           <SenhasList>
@@ -731,7 +785,7 @@ const PainelSenhas = () => {
           </SenhasList>
         </UltimasSenhasContainer>
         
-        <SenhasAguardandoContainer>
+        <SenhasAguardandoContainer $layoutTheme={config.layoutTheme}>
           <UltimasSenhasTitle>Senhas Aguardando</UltimasSenhasTitle>
           
           <SenhasList>
@@ -760,7 +814,7 @@ const PainelSenhas = () => {
         </SenhasAguardandoContainer>
       </PainelContainer>
       
-      <Footer>
+      <Footer $layoutTheme={config.layoutTheme}>
         <Clock>
           {formatTime(currentTime)} - {formatDate(currentTime)}
         </Clock>

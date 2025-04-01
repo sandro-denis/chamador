@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import styled from 'styled-components'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
+import layoutThemes from '../themes/layoutThemes'
 
 const Container = styled.div`
   padding: 20px;
@@ -197,6 +198,7 @@ const ConfiguracaoLayout = () => {
   const [loading, setLoading] = useState(false);
   const [config, setConfig] = useState({
     theme: 'light',
+    layoutTheme: 'padrao',
     backgroundColor: '#f8f9fa',
     textColor: '#2c3e50',
     senhaColor: '#3498db',
@@ -210,9 +212,19 @@ const ConfiguracaoLayout = () => {
     voiceType: 'default',
     volume: 80,
     soundEffect: 'bell',
-    repeatInterval: 1
+    repeatInterval: 1,
+    // Configurações de impressão
+    impressaoAutomatica: false,
+    tipoImpressora: 'termica',
+    larguraImpressao: 80,
+    alturaImpressao: 'auto'
   })
   
+  // Importa os temas de layout definidos
+  const { useEffect: useLayoutEffect } = React;
+  // O layoutThemes já está sendo importado no topo do arquivo, não precisamos importá-lo novamente
+  
+  // Temas de cores
   const themes = [
     { id: 'light', name: 'Claro', colors: { bg: '#f8f9fa', text: '#2c3e50', senha: '#3498db' } },
     { id: 'dark', name: 'Escuro', colors: { bg: '#2c3e50', text: '#ecf0f1', senha: '#3498db' } },
@@ -245,6 +257,15 @@ const ConfiguracaoLayout = () => {
       backgroundColor: theme.colors.bg,
       textColor: theme.colors.text,
       senhaColor: theme.colors.senha
+      // Mantém o layoutTheme atual
+    })
+  }
+  
+  const handleLayoutChange = (layoutId) => {
+    setConfig({
+      ...config,
+      layoutTheme: layoutId
+      // Mantém as cores atuais
     })
   }
   
@@ -401,6 +422,28 @@ const ConfiguracaoLayout = () => {
       </Section>
       
       <Section>
+        <SectionTitle>Layouts do Painel</SectionTitle>
+        <p style={{ marginBottom: '15px' }}>Escolha o layout que melhor se adapta às suas necessidades:</p>
+        <Grid>
+          {layoutThemes && Object.values(layoutThemes).map(layout => (
+            <ThemeCard
+              key={layout.id}
+              selected={config.layoutTheme === layout.id}
+              onClick={() => handleLayoutChange(layout.id)}
+              style={{
+                backgroundColor: layout.colors.bg,
+                color: layout.colors.text,
+                border: config.layoutTheme === layout.id ? `2px solid ${layout.colors.senha}` : '2px solid #ddd'
+              }}
+            >
+              <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>{layout.name}</div>
+              <div style={{ fontSize: '12px' }}>{layout.description}</div>
+            </ThemeCard>
+          ))}
+        </Grid>
+      </Section>
+      
+      <Section>
         <SectionTitle>Cores Personalizadas</SectionTitle>
         <ColorInput>
           <label>Cor de Fundo:</label>
@@ -551,13 +594,81 @@ const ConfiguracaoLayout = () => {
       </Section>
       
       <Section>
+        <SectionTitle>🖨️ Configuração de Impressão</SectionTitle>
+        
+        <div style={{ marginBottom: '15px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={config.impressaoAutomatica}
+              onChange={(e) => setConfig({ ...config, impressaoAutomatica: e.target.checked })}
+              style={{ marginRight: '10px' }}
+            />
+            <span>Habilitar impressão automática de senhas</span>
+          </label>
+          <p style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
+            Quando habilitado, as senhas serão impressas automaticamente após a confirmação, sem necessidade de clicar no botão de impressão.
+          </p>
+        </div>
+        
+        <div style={{ marginBottom: '15px' }}>
+          <Label>Tipo de Impressora:</Label>
+          <Select
+            value={config.tipoImpressora}
+            onChange={(e) => setConfig({ ...config, tipoImpressora: e.target.value })}
+            disabled={!config.impressaoAutomatica}
+          >
+            <option value="termica">Impressora Térmica</option>
+            <option value="escpos">Impressora ESC/POS</option>
+            <option value="padrao">Impressora Padrão do Sistema</option>
+          </Select>
+        </div>
+        
+        <div style={{ marginBottom: '15px' }}>
+          <Label>Comportamento de Impressão:</Label>
+          <Select
+            value={config.comportamentoImpressao || 'confirmar'}
+            onChange={(e) => setConfig({ ...config, comportamentoImpressao: e.target.value })}
+            disabled={!config.impressaoAutomatica}
+          >
+            <option value="confirmar">Imprimir após confirmação</option>
+            <option value="imediato">Imprimir imediatamente (sem confirmação)</option>
+          </Select>
+          <p style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
+            Recomendado para totens: "Imprimir imediatamente" para melhor experiência do usuário.
+          </p>
+        </div>
+        
+        <div style={{ marginBottom: '15px' }}>
+          <Label>Largura do Papel (mm):</Label>
+          <Select
+            value={config.larguraImpressao}
+            onChange={(e) => setConfig({ ...config, larguraImpressao: parseInt(e.target.value) })}
+            disabled={!config.impressaoAutomatica}
+          >
+            <option value="58">58mm (Padrão para mini-impressoras)</option>
+            <option value="80">80mm (Padrão para impressoras térmicas)</option>
+            <option value="76">76mm</option>
+          </Select>
+        </div>
+      </Section>
+      
+      <Section>
         <SectionTitle>Prévia</SectionTitle>
+        <div style={{ marginBottom: '15px' }}>
+          <strong>Layout selecionado:</strong> {layoutThemes[config.layoutTheme]?.name || 'Padrão'}
+          <p>{layoutThemes[config.layoutTheme]?.description || 'Layout padrão do sistema'}</p>
+        </div>
         <Preview
           backgroundColor={config.backgroundColor}
           textColor={config.textColor}
           fontFamily={config.fontFamily}
           fontSize={config.fontSize}
           backgroundImage={config.backgroundType === 'image' ? config.backgroundImage : null}
+          style={{
+            backgroundColor: layoutThemes[config.layoutTheme]?.colors?.bg || config.backgroundColor,
+            color: layoutThemes[config.layoutTheme]?.colors?.text || config.textColor
+          }}
         >
           {config.logo && (
             <img
@@ -566,7 +677,11 @@ const ConfiguracaoLayout = () => {
               style={{ maxWidth: '200px', marginBottom: '20px' }}
             />
           )}
-          <div style={{ color: config.senhaColor, fontWeight: 'bold' }}>A001</div>
+          <div style={{ 
+            color: layoutThemes[config.layoutTheme]?.colors?.senha || config.senhaColor, 
+            fontWeight: 'bold',
+            fontSize: `${config.fontSize}px`
+          }}>A001</div>
           <div>Guichê 01</div>
           {config.footerText && (
             <div style={{ marginTop: '20px', fontSize: '16px' }}>{config.footerText}</div>

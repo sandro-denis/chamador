@@ -366,10 +366,20 @@ const GerarSenha = () => {
   
   const handleGerarSenha = (tipo) => {
     setSelectedTipo(tipo)
-    setShowConfirm(true)
+    
+    // Verifica se deve imprimir imediatamente sem confirmação
+    if (config.impressaoAutomatica && config.comportamentoImpressao === 'imediato') {
+      // Gera e imprime a senha diretamente
+      handleConfirm(tipo)
+    } else {
+      // Mostra diálogo de confirmação
+      setShowConfirm(true)
+    }
   }
 
-  const handleConfirm = async () => {
+  const handleConfirm = async (tipoParam) => {
+    // Usa o tipo passado como parâmetro ou o tipo selecionado anteriormente
+    const tipoSenha = tipoParam || selectedTipo;
     try {
       setIsLoading(true) // Indica que está carregando
       setShowConfirm(false) // Fecha o diálogo de confirmação imediatamente para evitar múltiplos cliques
@@ -382,7 +392,7 @@ const GerarSenha = () => {
       }
       
       // Verifica se o tipo de senha foi selecionado
-      if (!selectedTipo) {
+      if (!tipoSenha) {
         console.error('Tipo de senha não selecionado')
         alert('Por favor, selecione um tipo de senha válido.')
         return
@@ -395,13 +405,13 @@ const GerarSenha = () => {
         return
       }
       
-      console.log('Iniciando geração de senha do tipo:', selectedTipo)
+      console.log('Iniciando geração de senha do tipo:', tipoSenha)
       
       // Simplificamos o sistema de retry para evitar problemas
       try {
         // Fazemos uma única chamada para gerarSenha
-        console.log(`Fazendo requisição para gerar senha do tipo: ${selectedTipo}`);
-        const novaSenha = await gerarSenha(selectedTipo);
+        console.log(`Fazendo requisição para gerar senha do tipo: ${tipoSenha}`);
+        const novaSenha = await gerarSenha(tipoSenha);
         console.log('Resposta completa da geração:', novaSenha);
         
         if (!novaSenha) {
@@ -431,6 +441,15 @@ const GerarSenha = () => {
           }
         }
         
+        // Impressão automática se estiver habilitada nas configurações
+        if (config.impressaoAutomatica) {
+          console.log('Impressão automática habilitada, imprimindo senha...');
+          // Aguarda um pequeno intervalo para garantir que ultimaSenhaGerada foi atualizada
+          setTimeout(() => {
+            imprimirSenhaAutomatica(novaSenha);
+          }, 300);
+        }
+        
       } catch (error) {
         console.error('Erro ao gerar senha:', error);
         
@@ -457,54 +476,147 @@ const GerarSenha = () => {
     }
   }
   
-  const handlePrint = () => {
-    if (!ultimaSenhaGerada) return
+  // Função para impressão automática de senhas
+  const imprimirSenhaAutomatica = (senha) => {
+    if (!senha) return
+    
+    // Obtém as configurações de impressão
+    const tipoImpressora = config.tipoImpressora || 'termica'
+    const larguraImpressao = config.larguraImpressao || 80
     
     // Cria uma janela de impressão
     const printWindow = window.open('', '_blank')
     
-    // Conteúdo da impressão
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Senha ${ultimaSenhaGerada.numero}</title>
-          <style>
-            body {
-              font-family: Arial, sans-serif;
-              text-align: center;
-              padding: 20px;
-            }
-            .senha {
-              font-size: 72px;
-              font-weight: bold;
-              margin: 20px 0;
-            }
-            .tipo {
-              font-size: 24px;
-              margin-bottom: 15px;
-            }
-            .info {
-              font-size: 14px;
-              margin-top: 30px;
-              color: #666;
-            }
-          </style>
-        </head>
-        <body>
-          <h1>Sistema de Senhas</h1>
-          <div class="tipo">${getTipoDescricao(ultimaSenhaGerada.tipo)}</div>
-          <div class="senha">${ultimaSenhaGerada.numero}</div>
-          <div class="info">Data: ${new Date(ultimaSenhaGerada.horarioGeracao).toLocaleString('pt-BR')}</div>
-          <div class="info">Por favor, aguarde ser chamado.</div>
-        </body>
-      </html>
-    `)
+    // Conteúdo da impressão baseado no tipo de impressora
+    if (tipoImpressora === 'termica' || tipoImpressora === 'padrao') {
+      // Estilo para impressora térmica (papel estreito)
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Senha ${senha.numero}</title>
+            <style>
+              @page {
+                size: ${larguraImpressao}mm auto;
+                margin: 0;
+              }
+              body {
+                font-family: Arial, sans-serif;
+                text-align: center;
+                padding: 5px;
+                margin: 0;
+                width: ${larguraImpressao - 10}mm;
+              }
+              .header {
+                font-size: 12px;
+                font-weight: bold;
+                margin-bottom: 5px;
+                border-bottom: 1px dashed #000;
+                padding-bottom: 5px;
+              }
+              .senha {
+                font-size: 48px;
+                font-weight: bold;
+                margin: 10px 0;
+              }
+              .tipo {
+                font-size: 16px;
+                margin-bottom: 10px;
+                font-weight: bold;
+              }
+              .info {
+                font-size: 10px;
+                margin-top: 10px;
+                color: #333;
+              }
+              .footer {
+                font-size: 10px;
+                margin-top: 10px;
+                border-top: 1px dashed #000;
+                padding-top: 5px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">${config.footerText || 'Sistema de Senhas'}</div>
+            <div class="tipo">${getTipoDescricao(senha.tipo)}</div>
+            <div class="senha">${senha.numero}</div>
+            <div class="info">Data: ${new Date(senha.horarioGeracao).toLocaleString('pt-BR')}</div>
+            <div class="info">Por favor, aguarde ser chamado.</div>
+            <div class="footer">Atendimento por ordem de chegada</div>
+          </body>
+        </html>
+      `)
+    } else if (tipoImpressora === 'escpos') {
+      // Para impressoras ESC/POS, usamos um formato mais simples
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Senha ${senha.numero}</title>
+            <style>
+              @page {
+                size: ${larguraImpressao}mm auto;
+                margin: 0;
+              }
+              body {
+                font-family: monospace;
+                text-align: center;
+                padding: 0;
+                margin: 0;
+                width: ${larguraImpressao - 5}mm;
+              }
+              .header {
+                font-size: 12px;
+                font-weight: bold;
+                margin-bottom: 5px;
+              }
+              .senha {
+                font-size: 36px;
+                font-weight: bold;
+                margin: 5px 0;
+              }
+              .tipo {
+                font-size: 14px;
+                margin-bottom: 5px;
+              }
+              .info {
+                font-size: 10px;
+                margin-top: 5px;
+              }
+              .footer {
+                font-size: 10px;
+                margin-top: 5px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="header">${config.footerText || 'Sistema de Senhas'}</div>
+            <div class="tipo">${getTipoDescricao(senha.tipo)}</div>
+            <div class="senha">${senha.numero}</div>
+            <div class="info">Data: ${new Date(senha.horarioGeracao).toLocaleString('pt-BR')}</div>
+            <div class="info">Aguarde ser chamado</div>
+            <div class="footer">-------------------</div>
+          </body>
+        </html>
+      `)
+    }
     
-    // Imprime e fecha a janela
+    // Imprime e fecha a janela automaticamente
     printWindow.document.close()
-    printWindow.focus()
-    printWindow.print()
-    printWindow.close()
+    
+    // Pequeno atraso para garantir que o conteúdo seja carregado
+    setTimeout(() => {
+      printWindow.focus()
+      printWindow.print()
+      // Fecha a janela após a impressão
+      setTimeout(() => {
+        printWindow.close()
+      }, 500)
+    }, 300)
+  }
+  
+  const handlePrint = () => {
+    if (!ultimaSenhaGerada) return
+    imprimirSenhaAutomatica(ultimaSenhaGerada)
   }
   
   const getTipoDescricao = (tipo) => {
@@ -574,7 +686,7 @@ const GerarSenha = () => {
             <DialogButtons>
               <DialogButton 
                 className="confirm" 
-                onClick={handleConfirm} 
+                onClick={() => handleConfirm()} 
                 disabled={isLoading}
                 style={{ opacity: isLoading ? 0.7 : 1 }}
               >
