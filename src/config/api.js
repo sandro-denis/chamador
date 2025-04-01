@@ -17,7 +17,7 @@ console.log('URL da API:', API_URL || 'Usando proxy do Vercel');
 
 // Configuração básica do axios
 axios.defaults.baseURL = API_URL;
-axios.defaults.withCredentials = true;
+axios.defaults.withCredentials = false;
 axios.defaults.headers.common['Content-Type'] = 'application/json';
 
 // Interceptor para adicionar token e logs

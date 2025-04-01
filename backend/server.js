@@ -33,19 +33,24 @@ if (!process.env.JWT_SECRET) {
 const app = express();
 const port = process.env.PORT || 3005;
 
-// Configuração CORS completamente permissiva
+// Configuração CORS específica para o frontend
 app.use((req, res, next) => {
-  // Permitir qualquer origem
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Permitir apenas a origem do frontend
+  const allowedOrigins = [
+    'http://localhost:3001', 
+    'https://chamador.onrender.com',
+    'https://chamador.vercel.app'
+  ];
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
   
-  // Permitir todos os métodos
+  // Permitir métodos necessários
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   
-  // Permitir todos os headers
-  res.setHeader('Access-Control-Allow-Headers', '*');
-  
-  // Permitir cookies
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  // Permitir headers necessários
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   
   // Lidar com requisições OPTIONS imediatamente
   if (req.method === 'OPTIONS') {
