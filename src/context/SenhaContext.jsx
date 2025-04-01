@@ -156,18 +156,37 @@ export const SenhaProvider = ({ children }) => {
       setLoading(true)
       console.log('Gerando senha do tipo:', tipo)
       
+      // Verificar se tipo está definido
+      if (!tipo) {
+        throw new Error('Tipo de senha não definido');
+      }
+      
       // Passar o ID do usuário atual para a função criarSenha
       const novaSenha = await criarSenha(tipo, user?._id)
       console.log('Senha gerada com sucesso:', novaSenha)
       
-      // Adicionar a nova senha à lista
-      setSenhas(prev => [...prev, novaSenha])
-      setUltimaSenhaGerada(novaSenha)
+      if (!novaSenha || typeof novaSenha !== 'object') {
+        throw new Error('Resposta inválida ao gerar senha');
+      }
       
-      return novaSenha
+      // Formatação do número da senha
+      let senhaFormatada = { ...novaSenha };
+      
+      // Garantir que a senha tenha número formatado
+      if (!senhaFormatada.numero && senhaFormatada.tipo) {
+        const tipo = senhaFormatada.tipo;
+        const numeroInt = parseInt(String(senhaFormatada._id).slice(-2), 10) || 0;
+        senhaFormatada.numero = `${tipo}${String(numeroInt).padStart(2, '0')}`;
+      }
+      
+      // Adicionar a nova senha à lista
+      setSenhas(prev => [...prev, senhaFormatada])
+      setUltimaSenhaGerada(senhaFormatada)
+      
+      return senhaFormatada
     } catch (error) {
       console.error('Erro ao gerar senha:', error)
-      setError(error.message)
+      setError(error.message || 'Erro desconhecido ao gerar senha')
       throw error
     } finally {
       setLoading(false)

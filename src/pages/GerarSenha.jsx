@@ -405,15 +405,24 @@ const GerarSenha = () => {
       while (tentativas < maxTentativas && !novaSenha) {
         try {
           console.log(`Tentativa ${tentativas + 1} de gerar senha...`)
-          novaSenha = await gerarSenha(selectedTipo)
+          // Captura explicitamente apenas o valor retornado, não a função
+          const resultado = await gerarSenha(selectedTipo)
+          novaSenha = resultado
+          
           console.log('Resultado da geração:', novaSenha ? 'Sucesso' : 'Falha')
-          console.log('Detalhes da senha gerada:', JSON.stringify(novaSenha))
+          
+          // Verifica se o resultado é válido
+          if (novaSenha && typeof novaSenha === 'object') {
+            console.log('Detalhes da senha gerada:', JSON.stringify(novaSenha))
+            break // Sai do loop se tiver sucesso
+          } else {
+            novaSenha = null // Reseta se o resultado não for válido
+            console.error('Resultado inválido recebido:', resultado)
+          }
+          
           tentativas++
           
-          // Se a senha foi gerada com sucesso, não precisamos continuar tentando
-          if (novaSenha) break
-          
-          if (tentativas < maxTentativas) {
+          if (tentativas < maxTentativas && !novaSenha) {
             // Espera um pouco antes de tentar novamente (tempo crescente)
             const tempoEspera = 500 * tentativas
             console.log(`Tentativa ${tentativas} falhou, aguardando ${tempoEspera}ms antes de tentar novamente...`)
