@@ -10,6 +10,7 @@ import Estatisticas from './pages/Estatisticas'
 import ConfiguracaoLayout from './pages/ConfiguracaoLayout'
 import Login from './pages/Login'
 import { FaTicketAlt, FaBell, FaDesktop, FaChartBar, FaCog, FaSignOutAlt, FaUserCircle } from 'react-icons/fa'
+import AcompanharSenha from './pages/AcompanharSenha'
 
 const Container = styled.div`
   min-height: 100vh;
@@ -232,10 +233,12 @@ const AppContent = () => {
           <Route path="/" element={<PrivateRoute><GerarSenha /></PrivateRoute>} />
           <Route path="/chamar" element={<PrivateRoute><ChamarSenha /></PrivateRoute>} />
           <Route path="/painel" element={<PrivateRoute><PainelSenhas /></PrivateRoute>} />
-          <Route path="/painel-publico" element={<PainelSenhas />} />
-          <Route path="/gerar-senha-publico" element={<GerarSenha />} />
           <Route path="/estatisticas" element={<PrivateRoute><Estatisticas /></PrivateRoute>} />
           <Route path="/configuracao" element={<PrivateRoute><ConfiguracaoLayout /></PrivateRoute>} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/painel-publico" element={<PainelSenhas isPublico={true} />} />
+          <Route path="/gerar-senha-publico" element={<GerarSenha />} />
+          <Route path="/acompanhar/:id" element={<AcompanharSenha />} />
         </Routes>
       </Container>
     </SenhaProvider>

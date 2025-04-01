@@ -28,7 +28,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     rollupOptions: {
-      external: ['mongodb'],
+      external: ['mongodb', 'qrcode.react'],
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom']
