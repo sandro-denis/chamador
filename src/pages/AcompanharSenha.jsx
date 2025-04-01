@@ -1,0 +1,438 @@
+import React, { useState, useEffect } from 'react'
+import { useParams } from 'react-router-dom'
+import styled from 'styled-components'
+import { useSenha } from '../context/SenhaContext'
+
+const PageContainer = styled.div`
+  min-height: 100vh;
+  width: 100%;
+  padding: 20px;
+  background: linear-gradient(135deg, #f5f6fa 0%, #e9ecef 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, #3498db, #2ecc71);
+  }
+`
+
+const Container = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  padding: 25px;
+  position: relative;
+  overflow: hidden;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, #3498db, #2ecc71);
+  }
+`
+
+const Title = styled.h2`
+  font-size: 24px;
+  margin-bottom: 20px;
+  text-align: center;
+  color: #2c3e50;
+  position: relative;
+  padding-bottom: 10px;
+  
+  &::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 50px;
+    height: 3px;
+    background: linear-gradient(90deg, #3498db, #2ecc71);
+    border-radius: 3px;
+  }
+`
+
+const SenhaCard = styled.div`
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  text-align: center;
+  width: 100%;
+  margin-bottom: 15px;
+  border: 2px solid ${props => {
+    switch(props.$tipo) {
+      case 'P': return '#e74c3c';
+      case 'N': return '#3498db';
+      case 'R': return '#2ecc71';
+      default: return '#7f8c8d';
+    }
+  }};
+`
+
+const SenhaNumero = styled.div`
+  font-size: 48px;
+  font-weight: bold;
+  margin: 15px 0;
+  color: ${props => {
+    switch(props.$tipo) {
+      case 'P': return '#e74c3c';
+      case 'N': return '#3498db';
+      case 'R': return '#2ecc71';
+      default: return '#7f8c8d';
+    }
+  }};
+`
+
+const SenhaTipo = styled.div`
+  font-size: 18px;
+  margin-bottom: 10px;
+  color: #7f8c8d;
+  font-weight: 500;
+`
+
+const SenhaInfo = styled.div`
+  font-size: 14px;
+  color: #7f8c8d;
+  margin-top: 10px;
+`
+
+const StatusContainer = styled.div`
+  width: 100%;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  margin-top: 10px;
+`
+
+const StatusTitle = styled.h3`
+  font-size: 18px;
+  color: #2c3e50;
+  margin-bottom: 10px;
+  text-align: center;
+`
+
+const StatusInfo = styled.div`
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 14px;
+`
+
+const StatusLabel = styled.span`
+  color: #7f8c8d;
+`
+
+const StatusValue = styled.span`
+  color: #2c3e50;
+  font-weight: 500;
+`
+
+const SenhaAtualCard = styled.div`
+  background-color: #f1f8ff;
+  border-radius: 8px;
+  padding: 15px;
+  text-align: center;
+  width: 100%;
+  margin-top: 20px;
+  border-left: 4px solid #3498db;
+`
+
+const SenhaAtualTitle = styled.div`
+  font-size: 16px;
+  color: #2c3e50;
+  margin-bottom: 10px;
+  font-weight: 500;
+`
+
+const SenhaAtualNumero = styled.div`
+  font-size: 32px;
+  font-weight: bold;
+  color: #3498db;
+`
+
+const SenhaAtualGuiche = styled.div`
+  font-size: 16px;
+  color: #2c3e50;
+  margin-top: 10px;
+  font-weight: 500;
+`
+
+const RefreshButton = styled.button`
+  background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 20px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 20px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 15px rgba(52, 152, 219, 0.4);
+  }
+  
+  &:active {
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(52, 152, 219, 0.3);
+  }
+`
+
+const StatusBadge = styled.div`
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+  margin-top: 10px;
+  background-color: ${props => {
+    switch(props.$status) {
+      case 'aguardando': return '#f1c40f20';
+      case 'chamada': return '#2ecc7120';
+      case 'finalizada': return '#7f8c8d20';
+      default: return '#7f8c8d20';
+    }
+  }};
+  color: ${props => {
+    switch(props.$status) {
+      case 'aguardando': return '#f1c40f';
+      case 'chamada': return '#2ecc71';
+      case 'finalizada': return '#7f8c8d';
+      default: return '#7f8c8d';
+    }
+  }};
+  border: 1px solid ${props => {
+    switch(props.$status) {
+      case 'aguardando': return '#f1c40f';
+      case 'chamada': return '#2ecc71';
+      case 'finalizada': return '#7f8c8d';
+      default: return '#7f8c8d';
+    }
+  }};
+`
+
+const AcompanharSenha = () => {
+  const { id } = useParams();
+  const { senhas, getSenhasPorStatus } = useSenha();
+  const [minhaSenha, setMinhaSenha] = useState(null);
+  const [senhaAtual, setSenhaAtual] = useState(null);
+  const [tempoEspera, setTempoEspera] = useState(0);
+  const [senhasNaFrente, setSenhasNaFrente] = useState(0);
+  
+  // Função para obter o status formatado
+  const getStatusFormatado = (status) => {
+    switch(status) {
+      case 'aguardando': return 'Aguardando';
+      case 'chamada': return 'Chamada';
+      case 'finalizada': return 'Finalizada';
+      default: return 'Desconhecido';
+    }
+  };
+  
+  // Função para obter a descrição do tipo de senha
+  const getTipoDescricao = (tipo) => {
+    switch(tipo) {
+      case 'P': return 'Senha Prioritária';
+      case 'N': return 'Senha Normal';
+      case 'R': return 'Atendimento Rápido';
+      default: return '';
+    }
+  };
+  
+  // Função para calcular o tempo estimado de espera
+  const calcularTempoEspera = (minhaSenha, senhasAguardando) => {
+    if (!minhaSenha || minhaSenha.status !== 'aguardando') return 0;
+    
+    // Conta quantas senhas estão na frente (considerando prioridades)
+    let senhasNaFrente = 0;
+    
+    // Se for prioritária, apenas outras prioritárias geradas antes estão na frente
+    if (minhaSenha.tipo === 'P') {
+      senhasNaFrente = senhasAguardando.filter(s => 
+        s.tipo === 'P' && 
+        new Date(s.horarioGeracao) < new Date(minhaSenha.horarioGeracao)
+      ).length;
+    } 
+    // Se for normal, todas as prioritárias e normais geradas antes estão na frente
+    else if (minhaSenha.tipo === 'N') {
+      senhasNaFrente = senhasAguardando.filter(s => 
+        (s.tipo === 'P') || 
+        (s.tipo === 'N' && new Date(s.horarioGeracao) < new Date(minhaSenha.horarioGeracao))
+      ).length;
+    }
+    // Se for rápida, todas as prioritárias e rápidas geradas antes estão na frente
+    else if (minhaSenha.tipo === 'R') {
+      senhasNaFrente = senhasAguardando.filter(s => 
+        (s.tipo === 'P') || 
+        (s.tipo === 'R' && new Date(s.horarioGeracao) < new Date(minhaSenha.horarioGeracao))
+      ).length;
+    }
+    
+    // Atualiza o estado de senhas na frente
+    setSenhasNaFrente(senhasNaFrente);
+    
+    // Calcula tempo estimado (média de 3 minutos por senha)
+    return senhasNaFrente * 3;
+  };
+  
+  // Efeito para buscar a senha e calcular tempo de espera
+  useEffect(() => {
+    if (id && senhas.length > 0) {
+      // Encontra a senha pelo ID
+      const senha = senhas.find(s => s._id === id);
+      if (senha) {
+        setMinhaSenha(senha);
+        
+        // Busca senhas aguardando para cálculos
+        const senhasAguardando = getSenhasPorStatus('aguardando');
+        
+        // Calcula tempo estimado de espera
+        const tempoEstimado = calcularTempoEspera(senha, senhasAguardando);
+        setTempoEspera(tempoEstimado);
+        
+        // Busca a senha atual sendo chamada
+        const senhasChamadas = getSenhasPorStatus('chamada');
+        if (senhasChamadas.length > 0) {
+          // Pega a senha chamada mais recentemente
+          const senhaAtual = senhasChamadas.sort((a, b) => 
+            new Date(b.horarioChamada || b.updatedAt) - new Date(a.horarioChamada || a.updatedAt)
+          )[0];
+          setSenhaAtual(senhaAtual);
+        } else {
+          setSenhaAtual(null);
+        }
+      }
+    }
+  }, [id, senhas, getSenhasPorStatus]);
+  
+  // Função para atualizar manualmente os dados
+  const handleRefresh = () => {
+    // A atualização acontecerá automaticamente pelo efeito quando senhas for atualizado
+    // Podemos adicionar um feedback visual aqui se necessário
+    alert('Dados atualizados!');
+  };
+  
+  if (!minhaSenha) {
+    return (
+      <PageContainer>
+        <Container>
+          <Title>Acompanhamento de Senha</Title>
+          <p>Carregando informações da senha...</p>
+          {id && <p>ID da senha: {id}</p>}
+        </Container>
+      </PageContainer>
+    );
+  }
+  
+  return (
+    <PageContainer>
+      <Container>
+        <Title>Acompanhamento de Senha</Title>
+        
+        <SenhaCard $tipo={minhaSenha.tipo}>
+          <SenhaTipo>
+            {getTipoDescricao(minhaSenha.tipo)}
+          </SenhaTipo>
+          
+          <SenhaNumero $tipo={minhaSenha.tipo}>
+            {minhaSenha.numero}
+          </SenhaNumero>
+          
+          <StatusBadge $status={minhaSenha.status}>
+            {getStatusFormatado(minhaSenha.status)}
+          </StatusBadge>
+          
+          <SenhaInfo>
+            Gerada em: {new Date(minhaSenha.horarioGeracao).toLocaleString('pt-BR')}
+          </SenhaInfo>
+        </SenhaCard>
+        
+        <StatusContainer>
+          <StatusTitle>Status do Atendimento</StatusTitle>
+          
+          <StatusInfo>
+            <StatusLabel>Status:</StatusLabel>
+            <StatusValue>{getStatusFormatado(minhaSenha.status)}</StatusValue>
+          </StatusInfo>
+          
+          {minhaSenha.status === 'aguardando' && (
+            <>
+              <StatusInfo>
+                <StatusLabel>Senhas na frente:</StatusLabel>
+                <StatusValue>{senhasNaFrente}</StatusValue>
+              </StatusInfo>
+              
+              <StatusInfo>
+                <StatusLabel>Tempo estimado:</StatusLabel>
+                <StatusValue>
+                  {tempoEspera > 0 ? `Aproximadamente ${tempoEspera} minutos` : 'Menos de 3 minutos'}
+                </StatusValue>
+              </StatusInfo>
+            </>
+          )}
+          
+          {minhaSenha.status === 'chamada' && (
+            <StatusInfo>
+              <StatusLabel>Guichê:</StatusLabel>
+              <StatusValue>{minhaSenha.guiche || 'Não informado'}</StatusValue>
+            </StatusInfo>
+          )}
+          
+          {minhaSenha.status === 'finalizada' && (
+            <StatusInfo>
+              <StatusLabel>Finalizada em:</StatusLabel>
+              <StatusValue>
+                {minhaSenha.horarioFinalizacao ? 
+                  new Date(minhaSenha.horarioFinalizacao).toLocaleString('pt-BR') : 
+                  'Não registrado'}
+              </StatusValue>
+            </StatusInfo>
+          )}
+        </StatusContainer>
+        
+        {senhaAtual && minhaSenha.status === 'aguardando' && (
+          <SenhaAtualCard>
+            <SenhaAtualTitle>Senha sendo chamada agora:</SenhaAtualTitle>
+            <SenhaAtualNumero>{senhaAtual.numero}</SenhaAtualNumero>
+            {senhaAtual.guiche && (
+              <SenhaAtualGuiche>Guichê: {senhaAtual.guiche}</SenhaAtualGuiche>
+            )}
+          </SenhaAtualCard>
+        )}
+        
+        <RefreshButton onClick={handleRefresh}>
+          🔄 Atualizar
+        </RefreshButton>
+      </Container>
+    </PageContainer>
+  );
+};
+
+export default AcompanharSenha;

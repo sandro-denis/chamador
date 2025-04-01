@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import styled from 'styled-components'
 import { useSenha } from '../context/SenhaContext'
 import { useAuth } from '../context/AuthContext'
+import { QRCodeSVG } from 'qrcode.react'
 
 const PageContainer = styled.div`
   min-height: 100vh;
@@ -325,6 +326,7 @@ const GerarSenha = () => {
   const [showConfirm, setShowConfirm] = useState(false)
   const [selectedTipo, setSelectedTipo] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [qrCodeUrl, setQrCodeUrl] = useState('');
   
   // Carrega configurações salvas
   const [config, setConfig] = useState({
@@ -426,6 +428,11 @@ const GerarSenha = () => {
         
         console.log('Senha gerada com sucesso:', novaSenha.numero || novaSenha._id);
         
+        // Gerar URL para o QR Code
+        const baseUrl = window.location.origin;
+        const qrUrl = `${baseUrl}/acompanhar/${novaSenha._id}`;
+        setQrCodeUrl(qrUrl);
+        
         // Se chegou aqui, a senha foi gerada com sucesso
         // Não precisamos fazer mais nada pois o contexto já atualizou o estado
         
@@ -484,6 +491,10 @@ const GerarSenha = () => {
     const tipoImpressora = config.tipoImpressora || 'termica'
     const larguraImpressao = config.larguraImpressao || 80
     
+    // Gerar URL para o QR Code
+    const baseUrl = window.location.origin
+    const qrUrl = `${baseUrl}/acompanhar/${senha._id}`
+    
     // Cria uma janela de impressão
     const printWindow = window.open('', '_blank')
     
@@ -534,7 +545,18 @@ const GerarSenha = () => {
                 border-top: 1px dashed #000;
                 padding-top: 5px;
               }
+              .qrcode {
+                margin: 10px auto;
+                width: 100px;
+                height: 100px;
+              }
+              .qrcode-info {
+                font-size: 9px;
+                margin-top: 5px;
+                color: #333;
+              }
             </style>
+            <script src="https://cdn.jsdelivr.net/npm/qrcode-generator/qrcode.min.js"></script>
           </head>
           <body>
             <div class="header">${config.footerText || 'Sistema de Senhas'}</div>
@@ -542,7 +564,25 @@ const GerarSenha = () => {
             <div class="senha">${senha.numero}</div>
             <div class="info">Data: ${new Date(senha.horarioGeracao).toLocaleString('pt-BR')}</div>
             <div class="info">Por favor, aguarde ser chamado.</div>
+            
+            <div class="qrcode" id="qrcode"></div>
+            <div class="qrcode-info">Escaneie o QR Code para acompanhar sua senha</div>
+            
             <div class="footer">Atendimento por ordem de chegada</div>
+            
+            <script>
+              // Gerar QR Code
+              try {
+                var typeNumber = 4;
+                var errorCorrectionLevel = 'L';
+                var qr = qrcode(typeNumber, errorCorrectionLevel);
+                qr.addData('${qrUrl}');
+                qr.make();
+                document.getElementById('qrcode').innerHTML = qr.createImgTag(3);
+              } catch (e) {
+                console.error('Erro ao gerar QR code:', e);
+              }
+            </script>
           </body>
         </html>
       `)
@@ -672,6 +712,17 @@ const GerarSenha = () => {
               Gerada em: {new Date(ultimaSenhaGerada.horarioGeracao).toLocaleString('pt-BR')}
             </SenhaInfo>
             
+            {qrCodeUrl && (
+              <>
+                <QRCodeContainer>
+                  <QRCodeSVG value={qrCodeUrl} size={150} />
+                </QRCodeContainer>
+                <QRCodeLabel>
+                  Escaneie o QR Code para acompanhar sua senha pelo celular
+                </QRCodeLabel>
+              </>
+            )}
+            
             <PrintButton onClick={handlePrint}>
               <span>🖨️</span> Imprimir Senha
             </PrintButton>
@@ -708,3 +759,21 @@ const GerarSenha = () => {
 }
 
 export default GerarSenha
+
+const QRCodeContainer = styled.div`
+  margin: 20px auto;
+  padding: 10px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+`
+
+const QRCodeLabel = styled.div`
+  font-size: 14px;
+  color: #7f8c8d;
+  margin-top: 10px;
+  text-align: center;
+`
