@@ -89,6 +89,8 @@ const SenhaCard = styled.div`
       default: return '#7f8c8d';
     }
   }};
+  transition: all 0.3s ease;
+  animation: ${props => props.style?.animation || 'none'};
 `
 
 const SenhaNumero = styled.div`
@@ -124,6 +126,8 @@ const StatusContainer = styled.div`
   background-color: #f8f9fa;
   border-radius: 8px;
   margin-top: 10px;
+  transition: all 0.3s ease;
+  animation: ${props => props.style?.animation || 'none'};
 `
 
 const StatusTitle = styled.h3`
@@ -320,34 +324,52 @@ const AcompanharSenha = () => {
       if (!id) return;
       
       if (!isLoading) setIsRefreshing(true);
-      console.log('Buscando senha com ID:', id);
+      console.log('Buscando senha com ID:', id, 'às', new Date().toLocaleTimeString());
       
       try {
-        // Tenta buscar a senha diretamente da API pública primeiro
+        // Buscar sempre da API, não depender do contexto
         const senhaDaApi = await buscarSenhaPorId(id);
         console.log('Senha encontrada via API:', senhaDaApi);
         
         if (senhaDaApi) {
           setMinhaSenha(senhaDaApi);
           
-          // Busca senhas aguardando para cálculos
-          const senhasAguardando = getSenhasPorStatus('aguardando');
+          // Buscar senhas na frente diretamente da API 
+          // Usar o estado anterior para cálculos quando os dados não mudarem
+          let senhasAguardandoAtual = getSenhasPorStatus('aguardando');
           
-          // Calcula tempo estimado de espera
-          const tempoEstimado = calcularTempoEspera(senhaDaApi, senhasAguardando);
-          setTempoEspera(tempoEstimado);
-          
-          // Busca a senha atual sendo chamada
-          const senhasChamadas = getSenhasPorStatus('chamada');
-          if (senhasChamadas.length > 0) {
-            // Pega a senha chamada mais recentemente
-            const senhaAtual = senhasChamadas.sort((a, b) => 
-              new Date(b.horarioChamada || b.updatedAt) - new Date(a.horarioChamada || a.updatedAt)
-            )[0];
-            setSenhaAtual(senhaAtual);
+          try {
+            // Atualizar senhas na frente e tempo estimado com base nos dados atuais
+            const tempoEstimado = calcularTempoEspera(senhaDaApi, senhasAguardandoAtual);
+            setTempoEspera(tempoEstimado);
+            
+            // Buscar senha sendo chamada atualmente
+            const senhasChamadas = getSenhasPorStatus('chamada');
+            if (senhasChamadas && senhasChamadas.length > 0) {
+              // Pega a senha chamada mais recentemente
+              const senhaAtual = senhasChamadas.sort((a, b) => 
+                new Date(b.horarioChamada || b.updatedAt) - new Date(a.horarioChamada || a.updatedAt)
+              )[0];
+              setSenhaAtual(senhaAtual);
+            }
+          } catch (err) {
+            console.error('Erro ao calcular tempos:', err);
+            // Não falhar a atualização principal se houver erro nos cálculos
           }
           
-          setUltimaAtualizacao(new Date());
+          // Atualizar timestamp apenas se houver mudança de estado
+          if (JSON.stringify(minhaSenha) !== JSON.stringify(senhaDaApi)) {
+            console.log('Estado da senha alterado, atualizando tela...');
+            // Piscar indicador visual de atualização
+            setIsRefreshing(true);
+            setTimeout(() => setIsRefreshing(false), 500);
+            
+            // Atualizar timestamp
+            setUltimaAtualizacao(new Date());
+          } else {
+            console.log('Sem alterações no estado da senha');
+          }
+          
           setIsLoading(false);
           setIsRefreshing(false);
           return;
@@ -356,68 +378,40 @@ const AcompanharSenha = () => {
         console.error('Erro ao buscar senha via API:', error);
         setErro(error.message || 'Erro ao buscar senha');
         
-        // Tenta buscar das senhas carregadas localmente como fallback
-        console.log('Tentando buscar senha do cache local...');
-      }
-      
-      // Verificar no estado local como fallback
-      if (senhas.length > 0) {
-        // Encontra a senha pelo ID - usando comparação mais flexível para evitar problemas de formato
-        // Converte ambos os IDs para string e remove espaços/aspas para garantir a comparação correta
-        const senha = senhas.find(s => {
-          // Normaliza os IDs para comparação
-          const senhaId = String(s._id).trim();
-          const qrId = String(id).trim();
-          return senhaId === qrId || senhaId.replace(/["']/g, '') === qrId.replace(/["']/g, '');
-        });
-        
-        if (senha) {
-          console.log('Senha encontrada no cache local:', senha);
-          setMinhaSenha(senha);
+        // Tentar usar dados em cache como fallback
+        if (!minhaSenha) {
+          // Tenta buscar das senhas carregadas localmente como fallback
+          console.log('Tentando buscar senha do cache local...');
           
-          // Busca senhas aguardando para cálculos
-          const senhasAguardando = getSenhasPorStatus('aguardando');
-          
-          // Calcula tempo estimado de espera
-          const tempoEstimado = calcularTempoEspera(senha, senhasAguardando);
-          setTempoEspera(tempoEstimado);
-          
-          // Busca a senha atual sendo chamada
-          const senhasChamadas = getSenhasPorStatus('chamada');
-          if (senhasChamadas.length > 0) {
-            // Pega a senha chamada mais recentemente
-            const senhaAtual = senhasChamadas.sort((a, b) => 
-              new Date(b.horarioChamada || b.updatedAt) - new Date(a.horarioChamada || a.updatedAt)
-            )[0];
-            setSenhaAtual(senhaAtual);
-          }
-          
-          setUltimaAtualizacao(new Date());
-          setErro(null);
-        } else {
-          console.log('Senha não encontrada no cache local');
-          if (!erro) {
-            setErro('Não foi possível encontrar a senha. Verifique se o código QR está correto.');
+          // Verificar no estado local como fallback
+          if (senhas.length > 0) {
+            // Encontra a senha pelo ID
+            const senha = senhas.find(s => {
+              const senhaId = String(s._id).trim();
+              const qrId = String(id).trim();
+              return senhaId === qrId || senhaId.replace(/["']/g, '') === qrId.replace(/["']/g, '');
+            });
+            
+            if (senha) {
+              console.log('Senha encontrada no cache local:', senha);
+              setMinhaSenha(senha);
+              setErro(null);
+            }
           }
         }
-      } else {
-        console.log('Nenhuma senha carregada no cache local');
-        if (!erro) {
-          setErro('Não foi possível encontrar a senha. Verifique se o código QR está correto.');
-        }
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
       }
-      
-      setIsLoading(false);
-      setIsRefreshing(false);
     };
     
     fetchSenhaInfo();
     
-    // Recarrega periodicamente a cada 5 segundos para atualização em tempo real
-    const interval = setInterval(fetchSenhaInfo, 5000);
+    // Recarrega periodicamente a cada 3 segundos para atualização em tempo real
+    const interval = setInterval(fetchSenhaInfo, 3000);
     
     return () => clearInterval(interval);
-  }, [id, senhas, getSenhasPorStatus, erro]);
+  }, [id, getSenhasPorStatus]);
   
   // Função para atualizar manualmente os dados
   const handleRefresh = async () => {
@@ -507,7 +501,10 @@ const AcompanharSenha = () => {
       <Container>        
         <Title>Acompanhamento de Senha</Title>
         
-        <SenhaCard $tipo={minhaSenha.tipo}>
+        <SenhaCard $tipo={minhaSenha.tipo} style={{
+          transition: 'all 0.3s ease',
+          animation: isRefreshing ? 'pulse 1s' : 'none'
+        }}>
           <SenhaTipo>
             {getTipoDescricao(minhaSenha.tipo)}
           </SenhaTipo>
@@ -523,9 +520,19 @@ const AcompanharSenha = () => {
           <SenhaInfo>
             Gerada em: {new Date(minhaSenha.horarioGeracao).toLocaleString('pt-BR')}
           </SenhaInfo>
+          <style>{`
+            @keyframes pulse {
+              0% { transform: scale(1); }
+              50% { transform: scale(1.03); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2); }
+              100% { transform: scale(1); }
+            }
+          `}</style>
         </SenhaCard>
         
-        <StatusContainer>
+        <StatusContainer style={{
+          transition: 'all 0.3s ease',
+          animation: isRefreshing ? 'highlight 1s' : 'none'
+        }}>
           <StatusTitle>Status do Atendimento</StatusTitle>
           
           <StatusInfo>
@@ -574,6 +581,13 @@ const AcompanharSenha = () => {
               {isRefreshing && <span style={{ marginLeft: '5px', color: '#3498db' }}>⟳</span>}
             </StatusValue>
           </StatusInfo>
+          <style>{`
+            @keyframes highlight {
+              0% { background-color: #f8f9fa; }
+              50% { background-color: #e3f2fd; }
+              100% { background-color: #f8f9fa; }
+            }
+          `}</style>
         </StatusContainer>
         
         {senhaAtual && minhaSenha.status === 'aguardando' && (
@@ -591,7 +605,7 @@ const AcompanharSenha = () => {
         </RefreshButton>
         
         <div style={{ textAlign: 'center', fontSize: '12px', color: '#7f8c8d', marginTop: '10px' }}>
-          Atualização automática a cada 5 segundos
+          Atualização automática a cada 3 segundos
         </div>
       </Container>
     </PageContainer>
