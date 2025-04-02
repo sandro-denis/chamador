@@ -248,8 +248,10 @@ const AcompanharSenha = () => {
   const [tempoEspera, setTempoEspera] = useState(0);
   const [senhasNaFrente, setSenhasNaFrente] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [tentativas, setTentativas] = useState(0);
   const [erro, setErro] = useState(null);
+  const [ultimaAtualizacao, setUltimaAtualizacao] = useState(new Date());
   
   // Verifica se a página está sendo acessada via QR code
   // Consideramos que é acesso via QR code quando a URL contém /acompanhar/ e não há referrer
@@ -317,9 +319,8 @@ const AcompanharSenha = () => {
     const fetchSenhaInfo = async () => {
       if (!id) return;
       
+      if (!isLoading) setIsRefreshing(true);
       console.log('Buscando senha com ID:', id);
-      setIsLoading(true);
-      setErro(null);
       
       try {
         // Tenta buscar a senha diretamente da API pública primeiro
@@ -346,7 +347,9 @@ const AcompanharSenha = () => {
             setSenhaAtual(senhaAtual);
           }
           
+          setUltimaAtualizacao(new Date());
           setIsLoading(false);
+          setIsRefreshing(false);
           return;
         }
       } catch (error) {
@@ -389,6 +392,7 @@ const AcompanharSenha = () => {
             setSenhaAtual(senhaAtual);
           }
           
+          setUltimaAtualizacao(new Date());
           setErro(null);
         } else {
           console.log('Senha não encontrada no cache local');
@@ -404,12 +408,13 @@ const AcompanharSenha = () => {
       }
       
       setIsLoading(false);
+      setIsRefreshing(false);
     };
     
     fetchSenhaInfo();
     
-    // Recarrega periodicamente
-    const interval = setInterval(fetchSenhaInfo, 15000); // Atualiza a cada 15 segundos
+    // Recarrega periodicamente a cada 5 segundos para atualização em tempo real
+    const interval = setInterval(fetchSenhaInfo, 5000);
     
     return () => clearInterval(interval);
   }, [id, senhas, getSenhasPorStatus, erro]);
@@ -417,7 +422,7 @@ const AcompanharSenha = () => {
   // Função para atualizar manualmente os dados
   const handleRefresh = async () => {
     try {
-      setIsLoading(true);
+      setIsRefreshing(true);
       setErro(null);
       const senhaDaApi = await buscarSenhaPorId(id);
       console.log('Senha encontrada via API (refresh manual):', senhaDaApi);
@@ -432,7 +437,7 @@ const AcompanharSenha = () => {
         const tempoEstimado = calcularTempoEspera(senhaDaApi, senhasAguardando);
         setTempoEspera(tempoEstimado);
         
-        alert('Dados atualizados com sucesso!');
+        setUltimaAtualizacao(new Date());
       } else {
         setErro('Não foi possível encontrar a senha. Verifique se o código QR está correto.');
       }
@@ -440,8 +445,17 @@ const AcompanharSenha = () => {
       console.error('Erro ao buscar senha (refresh manual):', error);
       setErro(error.message || 'Erro ao atualizar dados da senha');
     } finally {
-      setIsLoading(false);
+      setIsRefreshing(false);
     }
+  };
+  
+  // Formatar a hora da última atualização
+  const formatarUltimaAtualizacao = () => {
+    return ultimaAtualizacao.toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
   };
   
   if (!minhaSenha) {
@@ -552,6 +566,14 @@ const AcompanharSenha = () => {
               </StatusValue>
             </StatusInfo>
           )}
+          
+          <StatusInfo>
+            <StatusLabel>Última atualização:</StatusLabel>
+            <StatusValue>
+              {formatarUltimaAtualizacao()}
+              {isRefreshing && <span style={{ marginLeft: '5px', color: '#3498db' }}>⟳</span>}
+            </StatusValue>
+          </StatusInfo>
         </StatusContainer>
         
         {senhaAtual && minhaSenha.status === 'aguardando' && (
@@ -564,9 +586,13 @@ const AcompanharSenha = () => {
           </SenhaAtualCard>
         )}
         
-        <RefreshButton onClick={handleRefresh}>
-          🔄 Atualizar
+        <RefreshButton onClick={handleRefresh} disabled={isRefreshing}>
+          {isRefreshing ? '⟳ Atualizando...' : '🔄 Atualizar'}
         </RefreshButton>
+        
+        <div style={{ textAlign: 'center', fontSize: '12px', color: '#7f8c8d', marginTop: '10px' }}>
+          Atualização automática a cada 5 segundos
+        </div>
       </Container>
     </PageContainer>
   );
