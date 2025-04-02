@@ -483,7 +483,7 @@ const GerarSenha = () => {
     }
   }
   
-  // Função para impressão automática de senhas
+  // Função para impressão automática de senhas usando iframe oculto para impressão direta
   const imprimirSenhaAutomatica = (senha) => {
     if (!senha) return
     
@@ -495,13 +495,29 @@ const GerarSenha = () => {
     const baseUrl = window.location.origin
     const qrUrl = `${baseUrl}/acompanhar/${senha._id}`
     
-    // Cria uma janela de impressão
-    const printWindow = window.open('', '_blank')
+    // Remove qualquer iframe de impressão anterior
+    const oldIframe = document.getElementById('print-iframe')
+    if (oldIframe) {
+      document.body.removeChild(oldIframe)
+    }
+    
+    // Cria um iframe oculto para impressão
+    const iframe = document.createElement('iframe')
+    iframe.id = 'print-iframe'
+    iframe.style.position = 'fixed'
+    iframe.style.right = '0'
+    iframe.style.bottom = '0'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = '0'
+    document.body.appendChild(iframe)
     
     // Conteúdo da impressão baseado no tipo de impressora
+    let printContent = ''
+    
     if (tipoImpressora === 'termica' || tipoImpressora === 'padrao') {
       // Estilo para impressora térmica (papel estreito)
-      printWindow.document.write(`
+      printContent = `
         <html>
           <head>
             <title>Senha ${senha.numero}</title>
@@ -582,13 +598,18 @@ const GerarSenha = () => {
               } catch (e) {
                 console.error('Erro ao gerar QR code:', e);
               }
+              
+              // Aciona a impressão automaticamente quando o conteúdo estiver carregado
+              window.onload = function() {
+                window.print();
+              };
             </script>
           </body>
         </html>
-      `)
+      `
     } else if (tipoImpressora === 'escpos') {
       // Para impressoras ESC/POS, usamos um formato mais simples
-      printWindow.document.write(`
+      printContent = `
         <html>
           <head>
             <title>Senha ${senha.numero}</title>
@@ -635,23 +656,32 @@ const GerarSenha = () => {
             <div class="info">Data: ${new Date(senha.horarioGeracao).toLocaleString('pt-BR')}</div>
             <div class="info">Aguarde ser chamado</div>
             <div class="footer">-------------------</div>
+            
+            <script>
+              // Aciona a impressão automaticamente quando o conteúdo estiver carregado
+              window.onload = function() {
+                window.print();
+              };
+            </script>
           </body>
         </html>
-      `)
+      `
     }
     
-    // Imprime e fecha a janela automaticamente
-    printWindow.document.close()
+    // Escreve o conteúdo no iframe e aciona a impressão
+    const iframeDoc = iframe.contentWindow.document
+    iframeDoc.open()
+    iframeDoc.write(printContent)
+    iframeDoc.close()
     
-    // Pequeno atraso para garantir que o conteúdo seja carregado
-    setTimeout(() => {
-      printWindow.focus()
-      printWindow.print()
-      // Fecha a janela após a impressão
+    // Adiciona um evento para remover o iframe após a impressão
+    iframe.contentWindow.onafterprint = function() {
       setTimeout(() => {
-        printWindow.close()
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe)
+        }
       }, 500)
-    }, 300)
+    }
   }
   
   const handlePrint = () => {
