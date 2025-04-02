@@ -719,6 +719,39 @@ app.get('/api/senha-publica/:id', async (req, res) => {
   }
 });
 
+// Rota pública para buscar senhas aguardando (para QR Code)
+app.get('/api/senhas-publicas/aguardando', async (req, res) => {
+  try {
+    console.log('Buscando senhas aguardando públicas');
+    
+    const senhas = db.collection('senhas');
+    // Buscar todas as senhas com status aguardando
+    const senhasAguardando = await senhas.find({ 
+      status: 'aguardando'
+    }).toArray();
+    
+    console.log(`Encontradas ${senhasAguardando.length} senhas aguardando públicas`);
+    
+    // Retornar as senhas sem informações sensíveis
+    const senhasPublicas = senhasAguardando.map(senha => ({
+      _id: senha._id,
+      tipo: senha.tipo,
+      numero: senha.numero,
+      status: senha.status,
+      horarioGeracao: senha.horarioGeracao,
+      userId: senha.userId // necessário para agrupar por usuário
+    }));
+    
+    res.json(senhasPublicas);
+  } catch (error) {
+    console.error('Erro ao buscar senhas aguardando públicas:', error);
+    res.status(500).json({ 
+      message: 'Erro ao buscar senhas',
+      error: error.message 
+    });
+  }
+});
+
 // Middleware de tratamento de erros
 app.use((err, req, res, next) => {
   console.error('Erro não tratado:', err);

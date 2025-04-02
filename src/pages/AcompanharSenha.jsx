@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useLocation } from 'react-router-dom'
 import styled from 'styled-components'
 import { useSenha } from '../context/SenhaContext'
-import { buscarSenhaPorId } from '../config/auth'
+import { buscarSenhaPorId, buscarSenhasAguardandoPublico } from '../config/auth'
 
 const PageContainer = styled.div`
   min-height: 100vh;
@@ -284,7 +284,18 @@ const AcompanharSenha = () => {
   
   // Função para calcular o tempo estimado de espera
   const calcularTempoEspera = (minhaSenha, senhasAguardando) => {
-    if (!minhaSenha || minhaSenha.status !== 'aguardando') return 0;
+    if (!minhaSenha || minhaSenha.status !== 'aguardando') {
+      setSenhasNaFrente(0);
+      return 0;
+    }
+    
+    // Verifica se temos um array de senhas aguardando
+    if (!Array.isArray(senhasAguardando)) {
+      console.warn('senhasAguardando não é um array válido:', senhasAguardando);
+      senhasAguardando = [];
+    }
+    
+    console.log('Calculando tempo de espera. Senhas aguardando:', senhasAguardando.length);
     
     // Conta quantas senhas estão na frente (considerando prioridades)
     let senhasNaFrente = 0;
@@ -293,23 +304,35 @@ const AcompanharSenha = () => {
     if (minhaSenha.tipo === 'P') {
       senhasNaFrente = senhasAguardando.filter(s => 
         s.tipo === 'P' && 
+        s._id !== minhaSenha._id && // Excluir a própria senha
         new Date(s.horarioGeracao) < new Date(minhaSenha.horarioGeracao)
       ).length;
+      console.log('Senha prioritária, senhas P na frente:', senhasNaFrente);
     } 
     // Se for normal, todas as prioritárias e normais geradas antes estão na frente
     else if (minhaSenha.tipo === 'N') {
-      senhasNaFrente = senhasAguardando.filter(s => 
-        (s.tipo === 'P') || 
-        (s.tipo === 'N' && new Date(s.horarioGeracao) < new Date(minhaSenha.horarioGeracao))
+      const prioritarias = senhasAguardando.filter(s => s.tipo === 'P' && s._id !== minhaSenha._id).length;
+      const normaisAntes = senhasAguardando.filter(s => 
+        s.tipo === 'N' && 
+        s._id !== minhaSenha._id && // Excluir a própria senha
+        new Date(s.horarioGeracao) < new Date(minhaSenha.horarioGeracao)
       ).length;
+      senhasNaFrente = prioritarias + normaisAntes;
+      console.log('Senha normal, prioritárias:', prioritarias, 'normais na frente:', normaisAntes);
     }
     // Se for rápida, todas as prioritárias e rápidas geradas antes estão na frente
     else if (minhaSenha.tipo === 'R') {
-      senhasNaFrente = senhasAguardando.filter(s => 
-        (s.tipo === 'P') || 
-        (s.tipo === 'R' && new Date(s.horarioGeracao) < new Date(minhaSenha.horarioGeracao))
+      const prioritarias = senhasAguardando.filter(s => s.tipo === 'P' && s._id !== minhaSenha._id).length;
+      const rapidasAntes = senhasAguardando.filter(s => 
+        s.tipo === 'R' && 
+        s._id !== minhaSenha._id && // Excluir a própria senha
+        new Date(s.horarioGeracao) < new Date(minhaSenha.horarioGeracao)
       ).length;
+      senhasNaFrente = prioritarias + rapidasAntes;
+      console.log('Senha rápida, prioritárias:', prioritarias, 'rápidas na frente:', rapidasAntes);
     }
+    
+    console.log('Total senhas na frente:', senhasNaFrente);
     
     // Atualiza o estado de senhas na frente
     setSenhasNaFrente(senhasNaFrente);
@@ -334,16 +357,22 @@ const AcompanharSenha = () => {
         if (senhaDaApi) {
           setMinhaSenha(senhaDaApi);
           
-          // Buscar senhas na frente diretamente da API 
-          // Usar o estado anterior para cálculos quando os dados não mudarem
-          let senhasAguardandoAtual = getSenhasPorStatus('aguardando');
-          
           try {
+            // Buscar diretamente todas as senhas aguardando em vez de usar o contexto
+            const todasSenhasAguardando = await buscarSenhasAguardandoPublico();
+            console.log('Senhas aguardando buscadas da API:', todasSenhasAguardando.length);
+            
+            // Filtrar apenas senhas do mesmo usuário
+            const senhasDoMesmoServico = todasSenhasAguardando.filter(
+              s => s.userId === senhaDaApi.userId
+            );
+            console.log('Senhas do mesmo serviço:', senhasDoMesmoServico.length);
+            
             // Atualizar senhas na frente e tempo estimado com base nos dados atuais
-            const tempoEstimado = calcularTempoEspera(senhaDaApi, senhasAguardandoAtual);
+            const tempoEstimado = calcularTempoEspera(senhaDaApi, senhasDoMesmoServico);
             setTempoEspera(tempoEstimado);
             
-            // Buscar senha sendo chamada atualmente
+            // Buscar senha sendo chamada atualmente (do contexto, pois não há endpoint público)
             const senhasChamadas = getSenhasPorStatus('chamada');
             if (senhasChamadas && senhasChamadas.length > 0) {
               // Pega a senha chamada mais recentemente
@@ -353,8 +382,13 @@ const AcompanharSenha = () => {
               setSenhaAtual(senhaAtual);
             }
           } catch (err) {
-            console.error('Erro ao calcular tempos:', err);
-            // Não falhar a atualização principal se houver erro nos cálculos
+            console.error('Erro ao buscar senhas aguardando ou calcular tempos:', err);
+            // Tentar usar as senhas do contexto como fallback
+            const senhasAguardandoFallback = getSenhasPorStatus('aguardando');
+            if (senhasAguardandoFallback && senhasAguardandoFallback.length > 0) {
+              const tempoEstimado = calcularTempoEspera(senhaDaApi, senhasAguardandoFallback);
+              setTempoEspera(tempoEstimado);
+            }
           }
           
           // Atualizar timestamp apenas se houver mudança de estado
@@ -411,7 +445,7 @@ const AcompanharSenha = () => {
     const interval = setInterval(fetchSenhaInfo, 3000);
     
     return () => clearInterval(interval);
-  }, [id, getSenhasPorStatus]);
+  }, [id, getSenhasPorStatus, minhaSenha]);
   
   // Função para atualizar manualmente os dados
   const handleRefresh = async () => {
@@ -424,12 +458,21 @@ const AcompanharSenha = () => {
       if (senhaDaApi) {
         setMinhaSenha(senhaDaApi);
         
-        // Busca senhas aguardando para cálculos
-        const senhasAguardando = getSenhasPorStatus('aguardando');
-        
-        // Calcula tempo estimado de espera
-        const tempoEstimado = calcularTempoEspera(senhaDaApi, senhasAguardando);
-        setTempoEspera(tempoEstimado);
+        // Buscar diretamente todas as senhas aguardando
+        try {
+          const todasSenhasAguardando = await buscarSenhasAguardandoPublico();
+          
+          // Filtrar apenas senhas do mesmo usuário
+          const senhasDoMesmoServico = todasSenhasAguardando.filter(
+            s => s.userId === senhaDaApi.userId
+          );
+          
+          // Calcular tempo estimado de espera
+          const tempoEstimado = calcularTempoEspera(senhaDaApi, senhasDoMesmoServico);
+          setTempoEspera(tempoEstimado);
+        } catch (err) {
+          console.error('Erro ao buscar senhas aguardando no refresh manual:', err);
+        }
         
         setUltimaAtualizacao(new Date());
       } else {

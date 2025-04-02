@@ -325,3 +325,16 @@ export const buscarSenhaPorId = async (senhaId) => {
     }
   }
 };
+
+// Função para buscar senhas aguardando - versão pública
+export const buscarSenhasAguardandoPublico = async () => {
+  try {
+    console.log('Buscando senhas aguardando públicas');
+    const response = await axios.get(`/api/senhas-publicas/aguardando`);
+    console.log('Senhas aguardando recebidas:', response.data.length);
+    return response.data;
+  } catch (error) {
+    console.error('Erro ao buscar senhas aguardando:', error);
+    return [];
+  }
+};
