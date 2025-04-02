@@ -318,8 +318,15 @@ const AcompanharSenha = () => {
       
       // Verifica se já temos senhas carregadas
       if (senhas.length > 0) {
-        // Encontra a senha pelo ID
-        const senha = senhas.find(s => s._id === id);
+        // Encontra a senha pelo ID - usando comparação mais flexível para evitar problemas de formato
+        // Converte ambos os IDs para string e remove espaços/aspas para garantir a comparação correta
+        const senha = senhas.find(s => {
+          // Normaliza os IDs para comparação
+          const senhaId = String(s._id).trim();
+          const qrId = String(id).trim();
+          return senhaId === qrId || senhaId.replace(/["']/g, '') === qrId.replace(/["']/g, '');
+        });
+        
         if (senha) {
           console.log('Senha encontrada:', senha);
           setMinhaSenha(senha);
