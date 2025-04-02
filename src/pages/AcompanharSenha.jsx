@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useLocation } from 'react-router-dom'
 import styled from 'styled-components'
 import { useSenha } from '../context/SenhaContext'
 
@@ -240,11 +240,19 @@ const StatusBadge = styled.div`
 
 const AcompanharSenha = () => {
   const { id } = useParams();
+  const location = useLocation();
   const { senhas, getSenhasPorStatus } = useSenha();
   const [minhaSenha, setMinhaSenha] = useState(null);
   const [senhaAtual, setSenhaAtual] = useState(null);
   const [tempoEspera, setTempoEspera] = useState(0);
   const [senhasNaFrente, setSenhasNaFrente] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  const [tentativas, setTentativas] = useState(0);
+  
+  // Verifica se a página está sendo acessada via QR code
+  // Consideramos que é acesso via QR code quando a URL contém /acompanhar/ e não há referrer
+  // ou quando há um parâmetro específico na URL
+  const isQrCodeAccess = location.pathname.includes('/acompanhar/');
   
   // Função para obter o status formatado
   const getStatusFormatado = (status) => {
@@ -306,6 +314,7 @@ const AcompanharSenha = () => {
   useEffect(() => {
     if (id) {
       console.log('Buscando senha com ID:', id);
+      setIsLoading(true);
       
       // Verifica se já temos senhas carregadas
       if (senhas.length > 0) {
@@ -314,6 +323,7 @@ const AcompanharSenha = () => {
         if (senha) {
           console.log('Senha encontrada:', senha);
           setMinhaSenha(senha);
+          setIsLoading(false);
           
           // Busca senhas aguardando para cálculos
           const senhasAguardando = getSenhasPorStatus('aguardando');
@@ -335,12 +345,21 @@ const AcompanharSenha = () => {
           }
         } else {
           console.log('Senha não encontrada nas senhas carregadas');
+          // Incrementa o contador de tentativas
+          setTentativas(prev => prev + 1);
+          
+          // Se já tentamos várias vezes e ainda não encontramos, podemos considerar que a senha não existe
+          if (tentativas > 5) {
+            setIsLoading(false);
+          }
         }
       } else {
         console.log('Nenhuma senha carregada ainda, aguardando carregamento...');
+        // Incrementa o contador de tentativas
+        setTentativas(prev => prev + 1);
       }
     }
-  }, [id, senhas, getSenhasPorStatus]);
+  }, [id, senhas, getSenhasPorStatus, tentativas]);
   
   // Função para atualizar manualmente os dados
   const handleRefresh = () => {
@@ -354,8 +373,40 @@ const AcompanharSenha = () => {
       <PageContainer>
         <Container>
           <Title>Acompanhamento de Senha</Title>
-          <p>Carregando informações da senha...</p>
-          {id && <p>ID da senha: {id}</p>}
+          {isLoading ? (
+            <>
+              <div style={{ textAlign: 'center', margin: '20px 0' }}>
+                <div style={{ fontSize: '18px', marginBottom: '15px' }}>Carregando informações da senha...</div>
+                <div style={{ 
+                  width: '50px', 
+                  height: '50px', 
+                  border: '5px solid #f3f3f3', 
+                  borderTop: '5px solid #3498db', 
+                  borderRadius: '50%',
+                  margin: '0 auto',
+                  animation: 'spin 1s linear infinite'
+                }}></div>
+                <style>{`
+                  @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                  }
+                `}</style>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ textAlign: 'center', margin: '20px 0' }}>
+                <div style={{ fontSize: '18px', color: '#e74c3c', marginBottom: '15px' }}>
+                  Não foi possível encontrar a senha
+                </div>
+                <p>Verifique se o código QR está correto ou se a senha ainda está ativa no sistema.</p>
+              </div>
+              <RefreshButton onClick={handleRefresh}>
+                🔄 Tentar Novamente
+              </RefreshButton>
+            </>
+          )}
         </Container>
       </PageContainer>
     );
@@ -363,7 +414,7 @@ const AcompanharSenha = () => {
   
   return (
     <PageContainer>
-      <Container>
+      <Container>        
         <Title>Acompanhamento de Senha</Title>
         
         <SenhaCard $tipo={minhaSenha.tipo}>
