@@ -3,6 +3,7 @@ import styled from 'styled-components'
 import { useSenha } from '../context/SenhaContext'
 import { useAuth } from '../context/AuthContext'
 import { QRCodeSVG } from 'qrcode.react'
+import printJS from 'print-js'
 
 const PageContainer = styled.div`
   min-height: 100vh;
@@ -483,7 +484,7 @@ const GerarSenha = () => {
     }
   }
   
-  // Função para impressão automática de senhas usando iframe oculto para impressão direta
+  // Função para impressão automática de senhas usando impressão direta
   const imprimirSenhaAutomatica = (senha) => {
     if (!senha) return
     
@@ -495,193 +496,123 @@ const GerarSenha = () => {
     const baseUrl = window.location.origin
     const qrUrl = `${baseUrl}/acompanhar/${senha._id}`
     
-    // Remove qualquer iframe de impressão anterior
-    const oldIframe = document.getElementById('print-iframe')
-    if (oldIframe) {
-      document.body.removeChild(oldIframe)
+    console.log('Iniciando impressão automática')
+    console.log('URL do QR Code:', qrUrl)
+    
+    // Cria uma nova janela para impressão silenciosa
+    const printWindow = window.open('', '_blank', 'width=600,height=600')
+    
+    if (!printWindow) {
+      alert('Não foi possível abrir a janela de impressão. Verifique se o bloqueador de pop-ups está desativado.')
+      return
     }
     
-    // Cria um iframe oculto para impressão
-    const iframe = document.createElement('iframe')
-    iframe.id = 'print-iframe'
-    iframe.style.position = 'fixed'
-    iframe.style.right = '0'
-    iframe.style.bottom = '0'
-    iframe.style.width = '0'
-    iframe.style.height = '0'
-    iframe.style.border = '0'
-    document.body.appendChild(iframe)
-    
-    // Conteúdo da impressão baseado no tipo de impressora
-    let printContent = ''
+    // Conteúdo HTML para impressão
+    let htmlContent = ''
     
     if (tipoImpressora === 'termica' || tipoImpressora === 'padrao') {
       // Estilo para impressora térmica (papel estreito)
-      printContent = `
-        <html>
-          <head>
-            <title>Senha ${senha.numero}</title>
-            <style>
-              @page {
-                size: ${larguraImpressao}mm auto;
-                margin: 0;
-              }
-              body {
-                font-family: Arial, sans-serif;
-                text-align: center;
-                padding: 5px;
-                margin: 0;
-                width: ${larguraImpressao - 10}mm;
-              }
-              .header {
-                font-size: 12px;
-                font-weight: bold;
-                margin-bottom: 5px;
-                border-bottom: 1px dashed #000;
-                padding-bottom: 5px;
-              }
-              .senha {
-                font-size: 48px;
-                font-weight: bold;
-                margin: 10px 0;
-              }
-              .tipo {
-                font-size: 16px;
-                margin-bottom: 10px;
-                font-weight: bold;
-              }
-              .info {
-                font-size: 10px;
-                margin-top: 10px;
-                color: #333;
-              }
-              .footer {
-                font-size: 10px;
-                margin-top: 10px;
-                border-top: 1px dashed #000;
-                padding-top: 5px;
-              }
-              .qrcode {
-                margin: 10px auto;
-                width: 100px;
-                height: 100px;
-              }
-              .qrcode-info {
-                font-size: 9px;
-                margin-top: 5px;
-                color: #333;
-              }
-            </style>
-            <script src="https://cdn.jsdelivr.net/npm/qrcode-generator/qrcode.min.js"></script>
-          </head>
-          <body>
-            <div class="header">${config.footerText || 'Sistema de Senhas'}</div>
-            <div class="tipo">${getTipoDescricao(senha.tipo)}</div>
-            <div class="senha">${senha.numero}</div>
-            <div class="info">Data: ${new Date(senha.horarioGeracao).toLocaleString('pt-BR')}</div>
-            <div class="info">Por favor, aguarde ser chamado.</div>
-            
-            <div class="qrcode" id="qrcode"></div>
-            <div class="qrcode-info">Escaneie o QR Code para acompanhar sua senha</div>
-            
-            <div class="footer">Atendimento por ordem de chegada</div>
-            
-            <script>
-              // Gerar QR Code
-              try {
-                var typeNumber = 4;
-                var errorCorrectionLevel = 'L';
-                var qr = qrcode(typeNumber, errorCorrectionLevel);
-                qr.addData('${qrUrl}');
-                qr.make();
-                document.getElementById('qrcode').innerHTML = qr.createImgTag(3);
-              } catch (e) {
-                console.error('Erro ao gerar QR code:', e);
-              }
-              
-              // Aciona a impressão automaticamente quando o conteúdo estiver carregado
-              window.onload = function() {
-                window.print();
-              };
-            </script>
-          </body>
-        </html>
+      htmlContent = `
+        <div style="font-family:Arial,sans-serif;text-align:center;padding:5px;margin:0;width:${larguraImpressao - 10}mm;">
+          <div style="font-size:12px;font-weight:bold;margin-bottom:5px;border-bottom:1px dashed #000;padding-bottom:5px;">
+            ${config.footerText || 'Sistema de Senhas'}
+          </div>
+          <div style="font-size:16px;margin-bottom:10px;font-weight:bold;">
+            ${getTipoDescricao(senha.tipo)}
+          </div>
+          <div style="font-size:48px;font-weight:bold;margin:10px 0;">
+            ${senha.numero}
+          </div>
+          <div style="font-size:10px;margin-top:10px;color:#333;">
+            Data: ${new Date(senha.horarioGeracao).toLocaleString('pt-BR')}
+          </div>
+          <div style="font-size:10px;margin-top:5px;color:#333;">
+            Por favor, aguarde ser chamado.
+          </div>
+          
+          <div style="text-align:center;margin:10px auto;">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(qrUrl)}" 
+                 alt="QR Code" style="width:100px;height:100px;" />
+          </div>
+          
+          <div style="font-size:9px;margin-top:5px;color:#333;">
+            Escaneie o QR Code para acompanhar sua senha
+          </div>
+          
+          <div style="font-size:10px;margin-top:10px;border-top:1px dashed #000;padding-top:5px;">
+            Atendimento por ordem de chegada
+          </div>
+        </div>
       `
     } else if (tipoImpressora === 'escpos') {
       // Para impressoras ESC/POS, usamos um formato mais simples
-      printContent = `
-        <html>
-          <head>
-            <title>Senha ${senha.numero}</title>
-            <style>
-              @page {
-                size: ${larguraImpressao}mm auto;
-                margin: 0;
-              }
-              body {
-                font-family: monospace;
-                text-align: center;
-                padding: 0;
-                margin: 0;
-                width: ${larguraImpressao - 5}mm;
-              }
-              .header {
-                font-size: 12px;
-                font-weight: bold;
-                margin-bottom: 5px;
-              }
-              .senha {
-                font-size: 36px;
-                font-weight: bold;
-                margin: 5px 0;
-              }
-              .tipo {
-                font-size: 14px;
-                margin-bottom: 5px;
-              }
-              .info {
-                font-size: 10px;
-                margin-top: 5px;
-              }
-              .footer {
-                font-size: 10px;
-                margin-top: 5px;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="header">${config.footerText || 'Sistema de Senhas'}</div>
-            <div class="tipo">${getTipoDescricao(senha.tipo)}</div>
-            <div class="senha">${senha.numero}</div>
-            <div class="info">Data: ${new Date(senha.horarioGeracao).toLocaleString('pt-BR')}</div>
-            <div class="info">Aguarde ser chamado</div>
-            <div class="footer">-------------------</div>
-            
-            <script>
-              // Aciona a impressão automaticamente quando o conteúdo estiver carregado
-              window.onload = function() {
-                window.print();
-              };
-            </script>
-          </body>
-        </html>
+      htmlContent = `
+        <div style="font-family:monospace;text-align:center;padding:0;margin:0;width:${larguraImpressao - 5}mm;">
+          <div style="font-size:12px;font-weight:bold;margin-bottom:5px;">
+            ${config.footerText || 'Sistema de Senhas'}
+          </div>
+          <div style="font-size:14px;margin-bottom:5px;">
+            ${getTipoDescricao(senha.tipo)}
+          </div>
+          <div style="font-size:36px;font-weight:bold;margin:5px 0;">
+            ${senha.numero}
+          </div>
+          <div style="font-size:10px;margin-top:5px;">
+            Data: ${new Date(senha.horarioGeracao).toLocaleString('pt-BR')}
+          </div>
+          <div style="font-size:10px;margin-top:5px;">
+            Aguarde ser chamado
+          </div>
+          <div style="font-size:10px;margin-top:5px;">
+            -------------------
+          </div>
+        </div>
       `
     }
     
-    // Escreve o conteúdo no iframe e aciona a impressão
-    const iframeDoc = iframe.contentWindow.document
-    iframeDoc.open()
-    iframeDoc.write(printContent)
-    iframeDoc.close()
+    // Escreve o conteúdo HTML na nova janela
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Senha ${senha.numero}</title>
+          <style>
+            @page { size: ${larguraImpressao}mm auto; margin: 0; }
+            body { margin: 0; padding: 0; }
+          </style>
+        </head>
+        <body>
+          ${htmlContent}
+        </body>
+      </html>
+    `)
     
-    // Adiciona um evento para remover o iframe após a impressão
-    iframe.contentWindow.onafterprint = function() {
-      setTimeout(() => {
-        if (document.body.contains(iframe)) {
-          document.body.removeChild(iframe)
-        }
-      }, 500)
+    printWindow.document.close()
+    
+    // Função para imprimir e fechar automaticamente após um pequeno atraso
+    const printAndClose = () => {
+      try {
+        printWindow.focus() // Foca na janela antes de imprimir
+        printWindow.print() // Inicia a impressão
+        
+        // Fecha a janela após a impressão
+        setTimeout(() => {
+          try {
+            if (!printWindow.closed) {
+              printWindow.close()
+            }
+          } catch (e) {
+            console.error('Erro ao fechar janela de impressão:', e)
+          }
+        }, 1000)
+      } catch (e) {
+        console.error('Erro durante impressão:', e)
+        alert('Ocorreu um erro durante a impressão. Por favor, tente novamente.')
+      }
     }
+    
+    // Aguarda um momento para garantir que o conteúdo foi carregado
+    setTimeout(printAndClose, 500)
   }
   
   const handlePrint = () => {

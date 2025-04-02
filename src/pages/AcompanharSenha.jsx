@@ -304,30 +304,40 @@ const AcompanharSenha = () => {
   
   // Efeito para buscar a senha e calcular tempo de espera
   useEffect(() => {
-    if (id && senhas.length > 0) {
-      // Encontra a senha pelo ID
-      const senha = senhas.find(s => s._id === id);
-      if (senha) {
-        setMinhaSenha(senha);
-        
-        // Busca senhas aguardando para cálculos
-        const senhasAguardando = getSenhasPorStatus('aguardando');
-        
-        // Calcula tempo estimado de espera
-        const tempoEstimado = calcularTempoEspera(senha, senhasAguardando);
-        setTempoEspera(tempoEstimado);
-        
-        // Busca a senha atual sendo chamada
-        const senhasChamadas = getSenhasPorStatus('chamada');
-        if (senhasChamadas.length > 0) {
-          // Pega a senha chamada mais recentemente
-          const senhaAtual = senhasChamadas.sort((a, b) => 
-            new Date(b.horarioChamada || b.updatedAt) - new Date(a.horarioChamada || a.updatedAt)
-          )[0];
-          setSenhaAtual(senhaAtual);
+    if (id) {
+      console.log('Buscando senha com ID:', id);
+      
+      // Verifica se já temos senhas carregadas
+      if (senhas.length > 0) {
+        // Encontra a senha pelo ID
+        const senha = senhas.find(s => s._id === id);
+        if (senha) {
+          console.log('Senha encontrada:', senha);
+          setMinhaSenha(senha);
+          
+          // Busca senhas aguardando para cálculos
+          const senhasAguardando = getSenhasPorStatus('aguardando');
+          
+          // Calcula tempo estimado de espera
+          const tempoEstimado = calcularTempoEspera(senha, senhasAguardando);
+          setTempoEspera(tempoEstimado);
+          
+          // Busca a senha atual sendo chamada
+          const senhasChamadas = getSenhasPorStatus('chamada');
+          if (senhasChamadas.length > 0) {
+            // Pega a senha chamada mais recentemente
+            const senhaAtual = senhasChamadas.sort((a, b) => 
+              new Date(b.horarioChamada || b.updatedAt) - new Date(a.horarioChamada || a.updatedAt)
+            )[0];
+            setSenhaAtual(senhaAtual);
+          } else {
+            setSenhaAtual(null);
+          }
         } else {
-          setSenhaAtual(null);
+          console.log('Senha não encontrada nas senhas carregadas');
         }
+      } else {
+        console.log('Nenhuma senha carregada ainda, aguardando carregamento...');
       }
     }
   }, [id, senhas, getSenhasPorStatus]);
