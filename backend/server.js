@@ -33,16 +33,16 @@ if (!process.env.JWT_SECRET) {
 const app = express();
 const port = process.env.PORT || 3005;
 
-// Configuração CORS completamente permissiva
+// Configuração CORS específica para o frontend
 app.use((req, res, next) => {
-  // Permitir qualquer origem
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Permitir apenas a origem do frontend
+  res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3001');
   
-  // Permitir todos os métodos
+  // Permitir métodos necessários
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   
-  // Permitir todos os headers
-  res.setHeader('Access-Control-Allow-Headers', '*');
+  // Permitir headers necessários
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   
   // Permitir cookies
   res.setHeader('Access-Control-Allow-Credentials', 'true');

@@ -170,7 +170,11 @@ const App = () => {
 const AppContent = () => {
   const { user, logout } = useAuth();
   const location = useLocation();
-  const isPublico = location.pathname === '/painel-publico' || location.pathname === '/gerar-senha-publico' || location.pathname === '/login'
+  // Verificação para páginas públicas, incluindo acompanhamento de senha via QR code
+  const isPublico = location.pathname === '/painel-publico' || 
+                   location.pathname === '/gerar-senha-publico' || 
+                   location.pathname === '/login' || 
+                   location.pathname.includes('/acompanhar/')
   
   // Componente para proteger rotas que requerem autenticação
   const PrivateRoute = ({ children }) => {
