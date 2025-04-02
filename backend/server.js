@@ -679,6 +679,46 @@ app.get('/api/me', verificarToken, async (req, res) => {
   }
 });
 
+// Rota pública para buscar uma senha por ID (acessada via QR Code)
+app.get('/api/senha-publica/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log('Buscando senha pública por ID:', id);
+    
+    if (!id) {
+      return res.status(400).json({ message: 'ID da senha é obrigatório' });
+    }
+    
+    const senhas = db.collection('senhas');
+    const senha = await senhas.findOne({ _id: id });
+    
+    if (!senha) {
+      console.log('Senha não encontrada com ID:', id);
+      return res.status(404).json({ message: 'Senha não encontrada' });
+    }
+    
+    console.log('Senha encontrada:', senha._id, senha.numero);
+    
+    // Retorna a senha sem informações sensíveis
+    res.json({
+      _id: senha._id,
+      numero: senha.numero,
+      tipo: senha.tipo,
+      status: senha.status,
+      horarioGeracao: senha.horarioGeracao,
+      horarioChamada: senha.horarioChamada,
+      horarioFinalizacao: senha.horarioFinalizacao,
+      guiche: senha.guiche
+    });
+  } catch (error) {
+    console.error('Erro ao buscar senha pública:', error);
+    res.status(500).json({ 
+      message: 'Erro ao buscar senha',
+      error: error.message 
+    });
+  }
+});
+
 // Middleware de tratamento de erros
 app.use((err, req, res, next) => {
   console.error('Erro não tratado:', err);

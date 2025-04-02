@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams, useLocation } from 'react-router-dom'
 import styled from 'styled-components'
 import { useSenha } from '../context/SenhaContext'
+import { buscarSenhaPorId } from '../config/auth'
 
 const PageContainer = styled.div`
   min-height: 100vh;
@@ -248,6 +249,7 @@ const AcompanharSenha = () => {
   const [senhasNaFrente, setSenhasNaFrente] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [tentativas, setTentativas] = useState(0);
+  const [erro, setErro] = useState(null);
   
   // Verifica se a página está sendo acessada via QR code
   // Consideramos que é acesso via QR code quando a URL contém /acompanhar/ e não há referrer
@@ -312,11 +314,50 @@ const AcompanharSenha = () => {
   
   // Efeito para buscar a senha e calcular tempo de espera
   useEffect(() => {
-    if (id) {
+    const fetchSenhaInfo = async () => {
+      if (!id) return;
+      
       console.log('Buscando senha com ID:', id);
       setIsLoading(true);
+      setErro(null);
       
-      // Verifica se já temos senhas carregadas
+      try {
+        // Tenta buscar a senha diretamente da API pública primeiro
+        const senhaDaApi = await buscarSenhaPorId(id);
+        console.log('Senha encontrada via API:', senhaDaApi);
+        
+        if (senhaDaApi) {
+          setMinhaSenha(senhaDaApi);
+          
+          // Busca senhas aguardando para cálculos
+          const senhasAguardando = getSenhasPorStatus('aguardando');
+          
+          // Calcula tempo estimado de espera
+          const tempoEstimado = calcularTempoEspera(senhaDaApi, senhasAguardando);
+          setTempoEspera(tempoEstimado);
+          
+          // Busca a senha atual sendo chamada
+          const senhasChamadas = getSenhasPorStatus('chamada');
+          if (senhasChamadas.length > 0) {
+            // Pega a senha chamada mais recentemente
+            const senhaAtual = senhasChamadas.sort((a, b) => 
+              new Date(b.horarioChamada || b.updatedAt) - new Date(a.horarioChamada || a.updatedAt)
+            )[0];
+            setSenhaAtual(senhaAtual);
+          }
+          
+          setIsLoading(false);
+          return;
+        }
+      } catch (error) {
+        console.error('Erro ao buscar senha via API:', error);
+        setErro(error.message || 'Erro ao buscar senha');
+        
+        // Tenta buscar das senhas carregadas localmente como fallback
+        console.log('Tentando buscar senha do cache local...');
+      }
+      
+      // Verificar no estado local como fallback
       if (senhas.length > 0) {
         // Encontra a senha pelo ID - usando comparação mais flexível para evitar problemas de formato
         // Converte ambos os IDs para string e remove espaços/aspas para garantir a comparação correta
@@ -328,9 +369,8 @@ const AcompanharSenha = () => {
         });
         
         if (senha) {
-          console.log('Senha encontrada:', senha);
+          console.log('Senha encontrada no cache local:', senha);
           setMinhaSenha(senha);
-          setIsLoading(false);
           
           // Busca senhas aguardando para cálculos
           const senhasAguardando = getSenhasPorStatus('aguardando');
@@ -347,32 +387,61 @@ const AcompanharSenha = () => {
               new Date(b.horarioChamada || b.updatedAt) - new Date(a.horarioChamada || a.updatedAt)
             )[0];
             setSenhaAtual(senhaAtual);
-          } else {
-            setSenhaAtual(null);
           }
-        } else {
-          console.log('Senha não encontrada nas senhas carregadas');
-          // Incrementa o contador de tentativas
-          setTentativas(prev => prev + 1);
           
-          // Se já tentamos várias vezes e ainda não encontramos, podemos considerar que a senha não existe
-          if (tentativas > 5) {
-            setIsLoading(false);
+          setErro(null);
+        } else {
+          console.log('Senha não encontrada no cache local');
+          if (!erro) {
+            setErro('Não foi possível encontrar a senha. Verifique se o código QR está correto.');
           }
         }
       } else {
-        console.log('Nenhuma senha carregada ainda, aguardando carregamento...');
-        // Incrementa o contador de tentativas
-        setTentativas(prev => prev + 1);
+        console.log('Nenhuma senha carregada no cache local');
+        if (!erro) {
+          setErro('Não foi possível encontrar a senha. Verifique se o código QR está correto.');
+        }
       }
-    }
-  }, [id, senhas, getSenhasPorStatus, tentativas]);
+      
+      setIsLoading(false);
+    };
+    
+    fetchSenhaInfo();
+    
+    // Recarrega periodicamente
+    const interval = setInterval(fetchSenhaInfo, 15000); // Atualiza a cada 15 segundos
+    
+    return () => clearInterval(interval);
+  }, [id, senhas, getSenhasPorStatus, erro]);
   
   // Função para atualizar manualmente os dados
-  const handleRefresh = () => {
-    // A atualização acontecerá automaticamente pelo efeito quando senhas for atualizado
-    // Podemos adicionar um feedback visual aqui se necessário
-    alert('Dados atualizados!');
+  const handleRefresh = async () => {
+    try {
+      setIsLoading(true);
+      setErro(null);
+      const senhaDaApi = await buscarSenhaPorId(id);
+      console.log('Senha encontrada via API (refresh manual):', senhaDaApi);
+      
+      if (senhaDaApi) {
+        setMinhaSenha(senhaDaApi);
+        
+        // Busca senhas aguardando para cálculos
+        const senhasAguardando = getSenhasPorStatus('aguardando');
+        
+        // Calcula tempo estimado de espera
+        const tempoEstimado = calcularTempoEspera(senhaDaApi, senhasAguardando);
+        setTempoEspera(tempoEstimado);
+        
+        alert('Dados atualizados com sucesso!');
+      } else {
+        setErro('Não foi possível encontrar a senha. Verifique se o código QR está correto.');
+      }
+    } catch (error) {
+      console.error('Erro ao buscar senha (refresh manual):', error);
+      setErro(error.message || 'Erro ao atualizar dados da senha');
+    } finally {
+      setIsLoading(false);
+    }
   };
   
   if (!minhaSenha) {
@@ -405,7 +474,7 @@ const AcompanharSenha = () => {
             <>
               <div style={{ textAlign: 'center', margin: '20px 0' }}>
                 <div style={{ fontSize: '18px', color: '#e74c3c', marginBottom: '15px' }}>
-                  Não foi possível encontrar a senha
+                  {erro || 'Não foi possível encontrar a senha'}
                 </div>
                 <p>Verifique se o código QR está correto ou se a senha ainda está ativa no sistema.</p>
               </div>

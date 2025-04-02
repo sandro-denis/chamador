@@ -302,3 +302,26 @@ export const buscarEstatisticas = async (dataInicio, dataFim) => {
     throw error;
   }
 };
+
+// Função para buscar uma senha específica pelo ID (para QR Code)
+export const buscarSenhaPorId = async (senhaId) => {
+  try {
+    console.log('Buscando senha com ID:', senhaId);
+    
+    if (!senhaId) {
+      throw new Error('ID da senha não fornecido');
+    }
+    
+    // Usar endpoint público que não requer autenticação
+    const response = await axios.get(`/api/senha-publica/${senhaId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Erro ao buscar senha por ID:', error);
+    // Propagar o erro com uma mensagem mais amigável
+    if (error.response && error.response.status === 404) {
+      throw new Error('Não foi possível encontrar a senha. Verifique se o código QR está correto.');
+    } else {
+      throw new Error('Erro ao buscar informações da senha: ' + (error.message || 'Erro desconhecido'));
+    }
+  }
+};
