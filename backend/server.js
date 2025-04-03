@@ -33,16 +33,16 @@ if (!process.env.JWT_SECRET) {
 const app = express();
 const port = process.env.PORT || 3005;
 
-// Configuração CORS específica para o frontend
+// Configuração CORS completamente permissiva
 app.use((req, res, next) => {
-  // Permitir apenas a origem do frontend
-  res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3001');
+  // Permitir qualquer origem
+  res.setHeader('Access-Control-Allow-Origin', '*');
   
-  // Permitir métodos necessários
+  // Permitir todos os métodos
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   
-  // Permitir headers necessários
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  // Permitir todos os headers
+  res.setHeader('Access-Control-Allow-Headers', '*');
   
   // Permitir cookies
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -674,79 +674,6 @@ app.get('/api/me', verificarToken, async (req, res) => {
     console.error('Erro ao buscar informações do usuário:', error);
     res.status(500).json({ 
       message: 'Erro ao buscar informações do usuário',
-      error: error.message 
-    });
-  }
-});
-
-// Rota pública para buscar uma senha por ID (acessada via QR Code)
-app.get('/api/senha-publica/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    console.log('Buscando senha pública por ID:', id);
-    
-    if (!id) {
-      return res.status(400).json({ message: 'ID da senha é obrigatório' });
-    }
-    
-    const senhas = db.collection('senhas');
-    const senha = await senhas.findOne({ _id: id });
-    
-    if (!senha) {
-      console.log('Senha não encontrada com ID:', id);
-      return res.status(404).json({ message: 'Senha não encontrada' });
-    }
-    
-    console.log('Senha encontrada:', senha._id, senha.numero);
-    
-    // Retorna a senha sem informações sensíveis
-    res.json({
-      _id: senha._id,
-      numero: senha.numero,
-      tipo: senha.tipo,
-      status: senha.status,
-      horarioGeracao: senha.horarioGeracao,
-      horarioChamada: senha.horarioChamada,
-      horarioFinalizacao: senha.horarioFinalizacao,
-      guiche: senha.guiche
-    });
-  } catch (error) {
-    console.error('Erro ao buscar senha pública:', error);
-    res.status(500).json({ 
-      message: 'Erro ao buscar senha',
-      error: error.message 
-    });
-  }
-});
-
-// Rota pública para buscar senhas aguardando (para QR Code)
-app.get('/api/senhas-publicas/aguardando', async (req, res) => {
-  try {
-    console.log('Buscando senhas aguardando públicas');
-    
-    const senhas = db.collection('senhas');
-    // Buscar todas as senhas com status aguardando
-    const senhasAguardando = await senhas.find({ 
-      status: 'aguardando'
-    }).toArray();
-    
-    console.log(`Encontradas ${senhasAguardando.length} senhas aguardando públicas`);
-    
-    // Retornar as senhas sem informações sensíveis
-    const senhasPublicas = senhasAguardando.map(senha => ({
-      _id: senha._id,
-      tipo: senha.tipo,
-      numero: senha.numero,
-      status: senha.status,
-      horarioGeracao: senha.horarioGeracao,
-      userId: senha.userId // necessário para agrupar por usuário
-    }));
-    
-    res.json(senhasPublicas);
-  } catch (error) {
-    console.error('Erro ao buscar senhas aguardando públicas:', error);
-    res.status(500).json({ 
-      message: 'Erro ao buscar senhas',
       error: error.message 
     });
   }
