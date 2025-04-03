@@ -3,6 +3,7 @@ import styled from 'styled-components'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 import layoutThemes from '../themes/layoutThemes'
+import { updateUserConfig, getCurrentUser, limparDadosCompleto } from '../config/auth'
 
 const Container = styled.div`
   padding: 20px;
@@ -322,49 +323,32 @@ const ConfiguracaoLayout = () => {
     try {
       setLoading(true)
       
-      // Obter token do localStorage
-      const token = localStorage.getItem('token')
+      // Usar a nova função que combina limpeza local e no servidor
+      const resultado = await limparDadosCompleto()
       
-      // Chamar a API para limpar dados no banco
-      const response = await axios.post(
-        '/api/limpar-dados',
-        {},
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
+      console.log('Resultado da limpeza:', resultado)
       
-      // Limpar todos os dados relacionados a senhas do localStorage
-      localStorage.removeItem('senhas_sistema')
-      localStorage.removeItem('senhas_timestamp')
-      localStorage.removeItem('contadores')
-      localStorage.removeItem('senhasAguardando')
-      localStorage.removeItem('ultimasSenhasChamadas')
-      
-      // Limpar dados estatísticos
-      const keysToRemove = [];
-      // Identificar todas as chaves relacionadas a senhas e estatísticas
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && (key.includes('senha') || key.includes('Senha') || 
-                   key.includes('estatistica') || key.includes('Estatistica') || 
-                   key.includes('atendimento') || key.includes('Atendimento'))) {
-          keysToRemove.push(key);
+      if (resultado.success) {
+        let mensagem = `Dados locais limpos com sucesso! ${resultado.keysRemoved} itens foram removidos.`
+        
+        if (resultado.serverCleaned) {
+          mensagem += `\nDados no servidor também foram limpos. ${resultado.senhasRemovidas || 0} senhas foram removidas.`
+        } else if (resultado.serverError) {
+          mensagem += `\nObs: Não foi possível limpar os dados no servidor (${resultado.serverError}), mas os dados locais foram limpos.`
         }
+        
+        alert(mensagem)
+      } else {
+        alert(`Erro na limpeza: ${resultado.error || 'Erro desconhecido'}`)
       }
-      
-      // Remover todas as chaves identificadas
-      keysToRemove.forEach(key => localStorage.removeItem(key));
       
       // Forçar atualização da página para refletir as mudanças
       setTimeout(() => {
-        window.location.reload();
-      }, 1000);
-      
-      // Manter apenas as configurações de layout e o token
-      
-      alert(`Dados limpos com sucesso! ${response.data.senhasRemovidas} senhas foram removidas.`)
+        window.location.reload()
+      }, 1000)
     } catch (error) {
-      console.error('Erro ao limpar dados:', error)
-      alert('Erro ao limpar dados: ' + (error.response?.data?.message || error.message))
+      console.error('Erro ao tentar limpar dados:', error)
+      alert('Ocorreu um erro ao tentar limpar os dados: ' + error.message)
     } finally {
       setLoading(false)
     }

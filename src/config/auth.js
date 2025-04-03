@@ -338,3 +338,131 @@ export const buscarSenhasAguardandoPublico = async () => {
     return [];
   }
 };
+
+// Função para limpar dados localmente (sem depender do servidor)
+export const limparDadosLocalmente = () => {
+  try {
+    console.log('Iniciando limpeza de dados local...');
+    
+    // Lista de chaves específicas para remover
+    const keysToRemoveSpecific = [
+      'senhas_sistema',
+      'senhas_timestamp',
+      'contadores',
+      'senhasAguardando',
+      'ultimasSenhasChamadas',
+      'ultimaChamada',
+      'estatisticas'
+    ];
+    
+    // Remover as chaves específicas
+    keysToRemoveSpecific.forEach(key => {
+      if (localStorage.getItem(key)) {
+        console.log(`Removendo ${key}...`);
+        localStorage.removeItem(key);
+      }
+    });
+    
+    // Procurar por outras chaves relacionadas
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (
+        key.includes('senha') || 
+        key.includes('Senha') || 
+        key.includes('estatistica') || 
+        key.includes('Estatistica') || 
+        key.includes('atendimento') || 
+        key.includes('Atendimento') ||
+        key.includes('contador') ||
+        key.includes('Contador')
+      )) {
+        keysToRemove.push(key);
+      }
+    }
+    
+    // Remover todas as chaves encontradas
+    keysToRemove.forEach(key => {
+      console.log(`Removendo ${key}...`);
+      localStorage.removeItem(key);
+    });
+    
+    console.log('Limpeza de dados local concluída!');
+    return {
+      success: true,
+      message: 'Dados locais limpos com sucesso!',
+      keysRemoved: [...keysToRemoveSpecific, ...keysToRemove].length
+    };
+  } catch (error) {
+    console.error('Erro ao limpar dados localmente:', error);
+    return {
+      success: false,
+      message: 'Erro ao limpar dados localmente',
+      error: error.message
+    };
+  }
+};
+
+// Função para limpar dados no servidor e localmente
+export const limparDadosCompleto = async () => {
+  try {
+    const token = getToken();
+    if (!token) {
+      // Se não estiver autenticado, apenas limpa localmente
+      console.log('Usuário não autenticado, limpando apenas dados locais');
+      const resultadoLocal = limparDadosLocalmente();
+      return {
+        ...resultadoLocal,
+        serverCleaned: false
+      };
+    }
+    
+    // Tentar limpar no servidor primeiro
+    try {
+      const response = await axios.post(
+        '/api/limpar-dados',
+        {},
+        { 
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 10000 // 10 segundos de timeout
+        }
+      );
+      
+      console.log('Servidor respondeu:', response.data);
+      
+      // Agora limpar localmente
+      const resultadoLocal = limparDadosLocalmente();
+      
+      return {
+        ...resultadoLocal,
+        serverCleaned: true,
+        senhasRemovidas: response.data.senhasRemovidas,
+        serverMessage: response.data.message
+      };
+      
+    } catch (serverError) {
+      console.error('Erro ao limpar dados no servidor:', serverError);
+      
+      // Mesmo com erro no servidor, tenta limpar localmente
+      const resultadoLocal = limparDadosLocalmente();
+      
+      return {
+        ...resultadoLocal,
+        serverCleaned: false,
+        serverError: serverError.message,
+        serverErrorDetails: serverError.response?.data || null
+      };
+    }
+  } catch (error) {
+    console.error('Erro geral na limpeza de dados:', error);
+    return {
+      success: false,
+      message: 'Erro geral na limpeza de dados',
+      error: error.message,
+      serverCleaned: false
+    };
+  }
+};
