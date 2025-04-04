@@ -56,6 +56,9 @@ router.post('/limpar-dados', verificarToken, async (req, res) => {
     const userId = req.userId;
 
     console.log('Verificando conexão com o banco de dados...');
+    console.log('Tipo de req.app.locals:', typeof req.app.locals);
+    console.log('req.app.locals contém db?', req.app.locals.hasOwnProperty('db'));
+    
     if (!db) {
       console.error('Conexão com o banco de dados não disponível');
       return res.status(500).json({ 
@@ -64,6 +67,8 @@ router.post('/limpar-dados', verificarToken, async (req, res) => {
       });
     }
     console.log('Conexão com o banco de dados OK');
+    console.log('Tipo do objeto db:', typeof db);
+    console.log('Métodos disponíveis em db:', Object.keys(db));
 
     console.log('Verificando ID do usuário...');
     if (!userId) {
@@ -77,10 +82,23 @@ router.post('/limpar-dados', verificarToken, async (req, res) => {
 
     // Verificar se o usuário existe
     console.log('Buscando usuário no banco de dados...');
+    console.log('Tipo do userId:', typeof userId);
+    console.log('Valor do userId:', userId);
     let user;
     try {
-      user = await db.collection('users').findOne({ _id: userId });
+      // Garantir que estamos buscando por string
+      const userIdStr = String(userId);
+      console.log('Convertido userId para string:', userIdStr);
+      
+      user = await db.collection('users').findOne({ _id: userIdStr });
       console.log('Resultado da busca do usuário:', user ? 'Encontrado' : 'Não encontrado');
+      
+      if (!user) {
+        // Tentar buscar sem conversão como fallback
+        console.log('Tentando buscar usuário sem conversão de tipo...');
+        user = await db.collection('users').findOne({ _id: userId });
+        console.log('Resultado da segunda tentativa:', user ? 'Encontrado' : 'Não encontrado');
+      }
     } catch (dbError) {
       console.error('Erro ao buscar usuário:', dbError);
       return res.status(500).json({ 
@@ -101,12 +119,29 @@ router.post('/limpar-dados', verificarToken, async (req, res) => {
 
     // Remover todas as senhas do usuário
     console.log('Iniciando remoção das senhas...');
+    console.log('Tipo do userId para remoção de senhas:', typeof userId);
     let resultSenhas;
     try {
-      resultSenhas = await db.collection('senhas').deleteMany({ userId });
-      console.log(`${resultSenhas.deletedCount} senhas foram removidas`);
+      // Garantir que estamos usando o userId como string
+      const userIdStr = String(userId);
+      console.log('Tentando remover senhas com userId (string):', userIdStr);
+      
+      // Primeiro tentar com o userId como string
+      resultSenhas = await db.collection('senhas').deleteMany({ userId: userIdStr });
+      console.log(`${resultSenhas.deletedCount} senhas foram removidas usando userId como string`);
+      
+      // Se não encontrou nenhuma senha, tentar com o userId original
+      if (resultSenhas.deletedCount === 0) {
+        console.log('Nenhuma senha encontrada com userId como string, tentando com o formato original...');
+        resultSenhas = await db.collection('senhas').deleteMany({ userId });
+        console.log(`${resultSenhas.deletedCount} senhas foram removidas usando userId no formato original`);
+      }
     } catch (dbError) {
-      console.error('Erro ao remover senhas:', dbError);
+      console.error('Erro detalhado ao remover senhas:', {
+        message: dbError.message,
+        stack: dbError.stack,
+        code: dbError.code
+      });
       return res.status(500).json({ 
         message: 'Erro ao remover senhas',
         details: dbError.message
@@ -117,13 +152,32 @@ router.post('/limpar-dados', verificarToken, async (req, res) => {
     console.log('Resetando dados de atendimento...');
     let resultUser;
     try {
+      // Garantir que estamos usando o userId como string
+      const userIdStr = String(userId);
+      console.log('Tentando atualizar usuário com ID (string):', userIdStr);
+      
+      // Primeiro tentar com o userId como string
       resultUser = await db.collection('users').updateOne(
-        { _id: userId },
+        { _id: userIdStr },
         { $set: { ultimoAtendimento: null, totalAtendimentos: 0 } }
       );
-      console.log(`Dados de atendimento do usuário resetados: ${resultUser.modifiedCount > 0 ? 'Sim' : 'Não'}`);
+      console.log(`Dados de atendimento do usuário resetados (string): ${resultUser.modifiedCount > 0 ? 'Sim' : 'Não'}`);
+      
+      // Se não atualizou nenhum documento, tentar com o userId original
+      if (resultUser.modifiedCount === 0) {
+        console.log('Nenhum usuário atualizado com ID como string, tentando com o formato original...');
+        resultUser = await db.collection('users').updateOne(
+          { _id: userId },
+          { $set: { ultimoAtendimento: null, totalAtendimentos: 0 } }
+        );
+        console.log(`Dados de atendimento do usuário resetados (original): ${resultUser.modifiedCount > 0 ? 'Sim' : 'Não'}`);
+      }
     } catch (dbError) {
-      console.error('Erro ao resetar dados de atendimento:', dbError);
+      console.error('Erro detalhado ao resetar dados de atendimento:', {
+        message: dbError.message,
+        stack: dbError.stack,
+        code: dbError.code
+      });
       return res.status(500).json({ 
         message: 'Erro ao resetar dados de atendimento',
         details: dbError.message
@@ -137,10 +191,32 @@ router.post('/limpar-dados', verificarToken, async (req, res) => {
       instrucoes: 'Para garantir a limpeza completa, o sistema tentará limpar os dados do navegador automaticamente. Se ainda houver problemas, recarregue a página ou limpe manualmente o localStorage.'
     });
   } catch (error) {
-    console.error('Erro ao limpar dados:', error);
+    console.error('Erro detalhado ao limpar dados:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      code: error.code || 'N/A'
+    });
+    
+    // Verificar se o erro está relacionado ao MongoDB
+    const isMongoError = error.name === 'MongoError' || 
+                         error.name === 'MongoServerError' || 
+                         error.message.includes('mongo') || 
+                         error.message.includes('Mongo');
+    
+    // Enviar resposta com mais detalhes para ajudar no diagnóstico
     res.status(500).json({ 
       message: 'Erro ao limpar dados', 
-      error: error.message 
+      error: error.message,
+      errorType: error.name,
+      errorCode: error.code || 'N/A',
+      isMongoDB: isMongoError,
+      // Incluir informações de diagnóstico
+      diagnostico: {
+        temDB: !!req.app.locals.db,
+        temUserId: !!req.userId,
+        tipoUserId: typeof req.userId
+      }
     });
   }
 });
