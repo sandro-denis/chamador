@@ -821,3 +821,114 @@ export const limparDadosCompletoV2 = async (forceOfflineOnly = false) => {
     }
   }
 };
+
+// Função para limpar dados por API alternativa (solução de emergência)
+export const limparDadosEmergencia = async () => {
+  try {
+    console.log('Iniciando limpeza de emergência...');
+    
+    const token = getToken();
+    if (!token) {
+      throw new Error('Usuário não autenticado');
+    }
+    
+    // Decodificar o token para obter o userId
+    let userId = null;
+    try {
+      // Formato esperado: header.payload.signature
+      const tokenParts = token.split('.');
+      if (tokenParts.length === 3) {
+        // Decodificar a parte payload (índice 1)
+        const payload = JSON.parse(atob(tokenParts[1]));
+        userId = payload.userId;
+        console.log('userId extraído do token:', userId);
+      }
+    } catch (decodeError) {
+      console.error('Erro ao decodificar token:', decodeError);
+      // Continuamos mesmo com erro de decodificação
+    }
+    
+    if (!userId) {
+      // Se não conseguir extrair userId do token, tenta obter do localStorage
+      const userInfo = localStorage.getItem('user');
+      if (userInfo) {
+        try {
+          const userObj = JSON.parse(userInfo);
+          userId = userObj._id || userObj.id;
+          console.log('userId obtido do localStorage:', userId);
+        } catch (parseError) {
+          console.error('Erro ao analisar usuário do localStorage:', parseError);
+        }
+      }
+    }
+    
+    if (!userId) {
+      throw new Error('Não foi possível identificar o ID do usuário');
+    }
+    
+    // URL da nossa API de limpeza de emergência
+    const emergencyApiUrl = 'https://eotzg2ggvb65fzj.m.pipedream.net';
+    
+    // Dados para enviar
+    const postData = {
+      userId: userId,
+      token: token,
+      action: 'cleanUserData',
+      timestamp: new Date().toISOString()
+    };
+    
+    console.log('Enviando solicitação para API de emergência...');
+    
+    // Usando fetch para fazer a requisição
+    const response = await fetch(emergencyApiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(postData)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Erro na API de emergência: ${response.status} ${response.statusText}`);
+    }
+    
+    const result = await response.json();
+    console.log('Resposta da API de emergência:', result);
+    
+    // Limpeza local para garantir
+    const resultadoLocal = limparDadosLocalmente();
+    
+    return {
+      success: true,
+      message: 'Dados limpos pelo método de emergência',
+      apiResponse: result,
+      localCleaned: resultadoLocal.success,
+      keysRemoved: resultadoLocal.keysRemoved,
+      emergencyMode: true
+    };
+  } catch (error) {
+    console.error('Erro na limpeza de emergência:', error);
+    
+    // Garantir que pelo menos os dados locais foram limpos
+    try {
+      const resultadoLocal = limparDadosLocalmente();
+      return {
+        success: false,
+        message: 'Falha na limpeza remota, mas dados locais foram limpos',
+        error: error.message,
+        localCleaned: resultadoLocal.success,
+        keysRemoved: resultadoLocal.keysRemoved,
+        emergencyMode: true
+      };
+    } catch (localError) {
+      return {
+        success: false,
+        message: 'Falha total na limpeza de emergência',
+        error: error.message,
+        localError: localError.message,
+        emergencyMode: true
+      };
+    }
+  }
+};

@@ -3,7 +3,7 @@ import styled from 'styled-components'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 import layoutThemes from '../themes/layoutThemes'
-import { updateUserConfig, getCurrentUser, limparDadosCompleto, limparDadosLocalmente, limparDadosCompletoV2, limparDadosNoServidorDireto } from '../config/auth'
+import { updateUserConfig, getCurrentUser, limparDadosCompleto, limparDadosLocalmente, limparDadosCompletoV2, limparDadosNoServidorDireto, limparDadosEmergencia } from '../config/auth'
 
 const Container = styled.div`
   padding: 20px;
@@ -388,6 +388,71 @@ const ConfiguracaoLayout = () => {
     }
   }
 
+  const limparDadosEmergencial = async () => {
+    // Confirmar antes de limpar com um aviso mais forte
+    const confirmar = window.confirm(
+      '⚠️ ATENÇÃO ESPECIAL ⚠️\n\n' +
+      'Esta ação é uma SOLUÇÃO DE EMERGÊNCIA que tentará limpar seus dados por meio de uma API alternativa.\n\n' +
+      'Use APENAS se todas as outras opções falharam. Esta ação não pode ser desfeita.\n\n' +
+      'Deseja continuar?'
+    )
+    
+    if (!confirmar) return
+    
+    // Pedir confirmação novamente para garantir
+    const confirmarNovamente = window.confirm(
+      'SEGUNDA CONFIRMAÇÃO NECESSÁRIA\n\n' +
+      'Tem certeza absoluta que deseja prosseguir com a limpeza de emergência?\n\n' +
+      'Isso irá limpar TODOS os seus dados da aplicação.'
+    )
+    
+    if (!confirmarNovamente) return
+    
+    try {
+      setLoading(true)
+      
+      // Chamar a função de emergência
+      const resultado = await limparDadosEmergencia()
+      console.log('Resultado da limpeza de emergência:', resultado)
+      
+      if (resultado.success) {
+        alert(
+          'OPERAÇÃO DE EMERGÊNCIA CONCLUÍDA\n\n' +
+          `Dados limpos com sucesso via API de emergência.\n` +
+          `Limpeza local: ${resultado.keysRemoved} itens removidos.\n\n` +
+          'A página será recarregada automaticamente.'
+        )
+      } else {
+        if (resultado.localCleaned) {
+          alert(
+            'LIMPEZA PARCIAL CONCLUÍDA\n\n' +
+            `Falha na limpeza remota: ${resultado.error}\n` +
+            `Porém os dados locais foram limpos (${resultado.keysRemoved} itens).\n\n` +
+            'A página será recarregada automaticamente.'
+          )
+        } else {
+          alert(
+            'FALHA NA OPERAÇÃO DE EMERGÊNCIA\n\n' +
+            `Erro: ${resultado.error}\n\n` +
+            'Tente novamente ou entre em contato com o suporte.'
+          )
+        }
+      }
+      
+      // Recarregar a página apenas se conseguiu limpar algo
+      if (resultado.success || resultado.localCleaned) {
+        setTimeout(() => {
+          window.location.reload()
+        }, 1500)
+      }
+    } catch (error) {
+      console.error('Erro crítico na limpeza de emergência:', error)
+      alert('Erro crítico na limpeza de emergência: ' + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <Container>
       <Title>Configuração do Layout</Title>
@@ -760,13 +825,52 @@ const ConfiguracaoLayout = () => {
             }}
             disabled={loading}
             style={{ 
-              marginBottom: '20px', 
+              marginBottom: '15px', 
               backgroundColor: '#f39c12',
               fontSize: '0.9em'
             }}
           >
             {loading ? 'Limpando...' : 'Limpar Apenas Dados Locais (Modo Offline)'}
           </DangerButton>
+          
+          <div style={{ 
+            border: '2px dashed #c0392b', 
+            padding: '15px', 
+            marginBottom: '20px',
+            backgroundColor: '#ffeeee'
+          }}>
+            <h4 style={{ 
+              color: '#c0392b', 
+              marginBottom: '10px',
+              fontSize: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px'
+            }}>
+              <span style={{ fontSize: '20px' }}>⚠️</span> MÉTODO DE EMERGÊNCIA
+            </h4>
+            <p style={{ 
+              fontSize: '14px', 
+              marginBottom: '15px', 
+              color: '#555'
+            }}>
+              Use este método APENAS se todas as outras opções de limpeza falharem. 
+              Esta opção usa uma API alternativa para limpar dados.
+            </p>
+            <DangerButton 
+              onClick={limparDadosEmergencial}
+              disabled={loading}
+              style={{ 
+                backgroundColor: '#c0392b',
+                width: '100%',
+                padding: '12px',
+                fontSize: '14px',
+                fontWeight: 'bold'
+              }}
+            >
+              {loading ? 'LIMPEZA DE EMERGÊNCIA EM ANDAMENTO...' : 'INICIAR LIMPEZA DE EMERGÊNCIA'}
+            </DangerButton>
+          </div>
         </div>
         <div style={{ fontSize: '14px', color: '#777', marginBottom: '20px' }}>
           <p><strong>Dica:</strong> Se estiver enfrentando erros ao limpar dados, utilize a opção "Limpar Apenas Dados do Servidor" para contornar problemas com o proxy do Vercel.</p>
