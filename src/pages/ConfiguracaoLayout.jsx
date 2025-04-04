@@ -799,6 +799,18 @@ const ConfiguracaoLayout = () => {
           </DangerButton>
           
           <DangerButton 
+            onClick={limparDadosEmergencia}
+            disabled={loading}
+            style={{ 
+              marginBottom: '10px',
+              backgroundColor: '#ff5722',
+              fontWeight: 'bold'
+            }}
+          >
+            {loading ? 'Limpando...' : '🔥 EMERGÊNCIA: Limpar Dados do Servidor (API Alternativa)'}
+          </DangerButton>
+          
+          <DangerButton 
             onClick={() => {
               // Mostrar confirmação
               const confirmar = window.confirm(

@@ -866,15 +866,16 @@ export const limparDadosEmergencia = async () => {
       throw new Error('Não foi possível identificar o ID do usuário');
     }
     
-    // URL da nossa API de limpeza de emergência
-    const emergencyApiUrl = 'https://eotzg2ggvb65fzj.m.pipedream.net';
+    // URL da nossa API de limpeza de emergência - atualizada para nova API
+    const emergencyApiUrl = 'https://eodxvvwqnwxbxzm.m.pipedream.net';
     
     // Dados para enviar
     const postData = {
       userId: userId,
       token: token,
       action: 'cleanUserData',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      source: 'emergency_button'
     };
     
     console.log('Enviando solicitação para API de emergência...');
