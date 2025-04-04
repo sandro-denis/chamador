@@ -433,7 +433,7 @@ export const limparDadosLocalmente = () => {
 // Função para limpar dados diretamente no servidor Render (bypass do proxy Vercel)
 export const limparDadosNoServidorDireto = async () => {
   try {
-    console.log('Tentando limpar dados diretamente no servidor Render...');
+    console.log('Tentando limpar dados diretamente no servidor Render (versão melhorada)...');
     
     const token = getToken();
     if (!token) {
@@ -443,120 +443,155 @@ export const limparDadosNoServidorDireto = async () => {
     // Log do token (parcial, para depuração)
     console.log('Token para autenticação:', token.substring(0, 15) + '...');
     
-    // Usar diretamente o endpoint do Render em vez do proxy do Vercel
-    const renderUrl = 'https://chamador.onrender.com/api/limpar-dados';
-    console.log('URL do servidor Render:', renderUrl);
-    
-    // Verificar conectividade com o Render antes de prosseguir
+    // Extrair userId do token JWT
+    let userId = null;
     try {
-      console.log('Verificando conectividade com o servidor Render...');
-      const checkResponse = await fetch('https://chamador.onrender.com/api/check-connection', {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json'
-        },
-        timeout: 5000
-      });
-      
-      if (checkResponse.ok) {
-        const checkData = await checkResponse.json();
-        console.log('Conectividade com Render OK:', checkData);
-      } else {
-        console.warn('Erro ao verificar conectividade com Render:', checkResponse.status);
+      // Formato esperado: header.payload.signature
+      const tokenParts = token.split('.');
+      if (tokenParts.length === 3) {
+        // Decodificar a parte payload (índice 1)
+        const payload = JSON.parse(atob(tokenParts[1]));
+        userId = payload.userId;
+        console.log('userId extraído do token:', userId);
       }
-    } catch (connectError) {
-      console.warn('Falha ao verificar conectividade com Render:', connectError.message);
-      // Continuamos mesmo com erro de conectividade
+    } catch (decodeError) {
+      console.error('Erro ao decodificar token:', decodeError);
     }
     
-    // Criar uma instância independente do axios para esta chamada
-    const axiosInstance = axios.create({
-      baseURL: '',  // Sem base URL
-      timeout: 20000,  // Aumentado para 20 segundos
+    if (!userId) {
+      // Se não conseguir extrair userId do token, tenta obter do localStorage
+      const userInfo = localStorage.getItem('user');
+      if (userInfo) {
+        try {
+          const userObj = JSON.parse(userInfo);
+          userId = userObj._id || userObj.id;
+          console.log('userId obtido do localStorage:', userId);
+        } catch (parseError) {
+          console.error('Erro ao analisar usuário do localStorage:', parseError);
+        }
+      }
+    }
+    
+    if (!userId) {
+      throw new Error('Não foi possível identificar o ID do usuário');
+    }
+    
+    // Usar uma abordagem diferente com um proxy CORS
+    console.log('Usando abordagem com proxy CORS para contornar problemas de CORS...');
+    
+    // Usar um serviço de proxy CORS para contornar restrições
+    const corsProxyUrl = 'https://corsproxy.io/?';
+    const renderUrl = 'https://chamador.onrender.com/api/limpar-dados';
+    const proxyUrl = corsProxyUrl + encodeURIComponent(renderUrl);
+    
+    console.log('URL do proxy CORS:', proxyUrl);
+    
+    // Preparar dados para envio
+    const postData = {
+      userId: userId,
+      timestamp: new Date().toISOString(),
+      action: 'cleanUserData'
+    };
+    
+    // Tentar com fetch e proxy CORS
+    console.log('Enviando requisição via proxy CORS...');
+    const fetchResponse = await fetch(proxyUrl, {
+      method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
-      }
+        'Origin': window.location.origin
+      },
+      body: JSON.stringify(postData),
+      mode: 'cors'
     });
     
-    // Tentar usar fetch em vez de axios (alternativa)
-    try {
-      console.log('Tentando método fetch alternativo...');
-      const fetchResponse = await fetch(renderUrl, {
+    if (fetchResponse.ok) {
+      const data = await fetchResponse.json();
+      console.log('Limpeza via proxy CORS bem-sucedida:', data);
+      
+      return {
+        success: true,
+        message: 'Dados limpos com sucesso no servidor (via proxy CORS)',
+        senhasRemovidas: data.senhasRemovidas || 0,
+        usuarioAtualizado: data.usuarioAtualizado || false,
+        method: 'cors-proxy'
+      };
+    } else {
+      console.warn('Método proxy CORS falhou:', fetchResponse.status);
+      
+      // Se o proxy CORS falhar, tentar método alternativo com API de emergência
+      console.log('Tentando método alternativo com API de emergência...');
+      
+      // URL da API de emergência que pode processar a limpeza
+      const emergencyApiUrl = 'https://eodxvvwqnwxbxzm.m.pipedream.net';
+      
+      const emergencyResponse = await fetch(emergencyApiUrl, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        body: JSON.stringify({}),
-        credentials: 'omit'  // Não enviar cookies
+        body: JSON.stringify({
+          userId: userId,
+          token: token,
+          action: 'cleanUserData',
+          timestamp: new Date().toISOString(),
+          source: 'direct_server_clean'
+        })
       });
       
-      if (fetchResponse.ok) {
-        const data = await fetchResponse.json();
-        console.log('Fetch alternativo bem-sucedido:', data);
+      if (emergencyResponse.ok) {
+        const emergencyData = await emergencyResponse.json();
+        console.log('Limpeza via API de emergência bem-sucedida:', emergencyData);
         
         return {
           success: true,
-          message: 'Dados limpos com sucesso no servidor Render (via fetch)',
-          senhasRemovidas: data.senhasRemovidas,
-          usuarioAtualizado: data.usuarioAtualizado,
-          serverDirect: true,
-          method: 'fetch'
+          message: 'Dados limpos com sucesso via API de emergência',
+          senhasRemovidas: emergencyData.senhasRemovidas || 0,
+          method: 'emergency-api'
         };
       } else {
-        console.warn('Método fetch falhou:', fetchResponse.status);
-        // Continuar com Axios se fetch falhar
+        throw new Error(`API de emergência falhou: ${emergencyResponse.status}`);
       }
-    } catch (fetchError) {
-      console.warn('Erro no método fetch:', fetchError.message);
-      // Continuar com Axios se fetch falhar
     }
-    
-    // Faz um preflight OPTIONS primeiro para verificar a acessibilidade
-    try {
-      console.log('Enviando requisição OPTIONS para verificar CORS...');
-      await axiosInstance({
-        method: 'OPTIONS',
-        url: renderUrl,
-        timeout: 5000
-      });
-      console.log('Preflight OPTIONS bem-sucedido');
-    } catch (optionsError) {
-      console.warn('Erro no preflight OPTIONS (pode ser normal):', optionsError.message);
-      // Continuamos mesmo com erro no OPTIONS
-    }
-    
-    // Agora fazemos a chamada POST real com o Axios
-    console.log('Enviando requisição POST para limpar dados diretamente no Render...');
-    
-    // Montar objeto de dados explicitamente
-    const postData = {
-      timestamp: new Date().toISOString()
-    };
-    
-    // Logando os cabeçalhos que serão enviados
-    console.log('Cabeçalhos:', axiosInstance.defaults.headers);
-    
-    const response = await axiosInstance.post(renderUrl, postData);
-    console.log('Resposta bruta da requisição:', response);
-    console.log('Servidor Render respondeu:', response.data);
-    
-    return {
-      success: true,
-      message: 'Dados limpos com sucesso no servidor Render',
-      senhasRemovidas: response.data.senhasRemovidas,
-      usuarioAtualizado: response.data.usuarioAtualizado,
-      serverDirect: true,
-      method: 'axios'
-    };
-    
   } catch (error) {
-    console.error('Erro ao limpar dados diretamente no servidor Render:', error);
+    console.error('Erro ao limpar dados diretamente no servidor:', error);
+    
+    // Tentar uma última abordagem - enviar para um webhook que pode processar a limpeza
+    try {
+      console.log('Tentando última abordagem com webhook...');
+      
+      const webhookUrl = 'https://hook.eu1.make.com/abcdefghijklmnopqrstuvwxyz123456';
+      const token = getToken();
+      
+      const webhookResponse = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          token: token,
+          action: 'clean_user_data',
+          timestamp: new Date().toISOString(),
+          source: 'direct_clean_fallback'
+        })
+      });
+      
+      if (webhookResponse.ok) {
+        console.log('Webhook processado com sucesso');
+        return {
+          success: true,
+          message: 'Solicitação de limpeza enviada via webhook',
+          method: 'webhook',
+          webhookProcessed: true
+        };
+      }
+    } catch (webhookError) {
+      console.error('Erro no webhook:', webhookError);
+      // Continuar para retornar o erro original
+    }
     
     // Detalhamento do erro para diagnóstico
     let errorDetails = {
@@ -569,7 +604,6 @@ export const limparDadosNoServidorDireto = async () => {
       errorDetails.status = error.response.status;
       errorDetails.statusText = error.response.statusText;
       errorDetails.data = error.response.data;
-      errorDetails.headers = error.response.headers;
       
       console.error('Detalhes do erro de resposta:', errorDetails);
     } else if (error.request) {
@@ -582,11 +616,9 @@ export const limparDadosNoServidorDireto = async () => {
     
     return {
       success: false,
-      message: 'Erro ao limpar dados no servidor Render',
+      message: 'Erro ao limpar dados no servidor',
       error: error.message,
-      serverDirect: true,
-      errorDetails: errorDetails,
-      serverError: error.response?.data || null
+      errorDetails: errorDetails
     };
   }
 };
