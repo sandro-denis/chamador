@@ -52,18 +52,25 @@ const verificarToken = (req, res, next) => {
 router.post('/limpar-dados', verificarToken, async (req, res) => {
   try {
     console.log('Iniciando processo de limpeza de dados...');
+    console.log('Ambiente:', process.env.NODE_ENV || 'desenvolvimento');
+    
+    // Verificação detalhada da disponibilidade do banco de dados
+    console.log('Verificando conexão com o banco de dados...');
+    console.log('Tipo de req.app:', typeof req.app);
+    console.log('Tipo de req.app.locals:', typeof req.app.locals);
+    console.log('req.app.locals contém db?', req.app.locals && req.app.locals.hasOwnProperty('db'));
+    
+    // Verificação mais robusta da conexão com o banco de dados
     const db = req.app.locals.db;
     const userId = req.userId;
-
-    console.log('Verificando conexão com o banco de dados...');
-    console.log('Tipo de req.app.locals:', typeof req.app.locals);
-    console.log('req.app.locals contém db?', req.app.locals.hasOwnProperty('db'));
     
     if (!db) {
       console.error('Conexão com o banco de dados não disponível');
       return res.status(500).json({ 
         message: 'Erro de conexão com o banco de dados',
-        details: 'A conexão com o banco de dados não está disponível'
+        details: 'A conexão com o banco de dados não está disponível',
+        ambiente: process.env.NODE_ENV || 'desenvolvimento',
+        appLocals: Object.keys(req.app.locals || {}).join(', ') || 'vazio'
       });
     }
     console.log('Conexão com o banco de dados OK');
@@ -204,6 +211,19 @@ router.post('/limpar-dados', verificarToken, async (req, res) => {
                          error.message.includes('mongo') || 
                          error.message.includes('Mongo');
     
+    // Coletar informações detalhadas sobre o ambiente
+    const diagnosticoDetalhado = {
+      temDB: !!req.app.locals.db,
+      temUserId: !!req.userId,
+      tipoUserId: typeof req.userId,
+      ambiente: process.env.NODE_ENV || 'desenvolvimento',
+      appLocalsKeys: Object.keys(req.app.locals || {}).join(', ') || 'vazio',
+      mongodbUri: process.env.MONGODB_URI ? 'Definido' : 'Não definido',
+      errorStack: error.stack ? error.stack.split('\n').slice(0, 3).join('\n') : 'Não disponível'
+    };
+    
+    console.error('Diagnóstico detalhado do erro:', diagnosticoDetalhado);
+    
     // Enviar resposta com mais detalhes para ajudar no diagnóstico
     res.status(500).json({ 
       message: 'Erro ao limpar dados', 
@@ -212,12 +232,18 @@ router.post('/limpar-dados', verificarToken, async (req, res) => {
       errorCode: error.code || 'N/A',
       isMongoDB: isMongoError,
       // Incluir informações de diagnóstico
-      diagnostico: {
-        temDB: !!req.app.locals.db,
-        temUserId: !!req.userId,
-        tipoUserId: typeof req.userId
-      }
+      diagnostico: diagnosticoDetalhado
     });
+    
+    // Tentar reconectar ao MongoDB se for um erro de conexão
+    if (isMongoError && typeof global.reconnectMongoDB === 'function') {
+      console.log('Tentando reconectar ao MongoDB após erro...');
+      try {
+        global.reconnectMongoDB();
+      } catch (reconnectError) {
+        console.error('Falha ao tentar reconectar:', reconnectError);
+      }
+    }
   }
 });
 

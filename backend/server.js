@@ -33,16 +33,16 @@ if (!process.env.JWT_SECRET) {
 const app = express();
 const port = process.env.PORT || 3005;
 
-// Configuração CORS completamente permissiva
+// Configuração CORS específica para o frontend
 app.use((req, res, next) => {
-  // Permitir qualquer origem
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Permitir apenas a origem do frontend
+  res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3001');
   
-  // Permitir todos os métodos
+  // Permitir métodos necessários
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   
-  // Permitir todos os headers
-  res.setHeader('Access-Control-Allow-Headers', '*');
+  // Permitir headers necessários
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   
   // Permitir cookies
   res.setHeader('Access-Control-Allow-Credentials', 'true');
@@ -90,11 +90,22 @@ async function connectToMongoDB() {
     console.log('Tentando conectar ao MongoDB...');
     console.log('URI:', uri.replace(/:[^:]*@/, ':****@')); // Oculta a senha no log
     console.log('Database:', dbName);
+    console.log('Ambiente:', process.env.NODE_ENV || 'desenvolvimento');
+    
+    // Fechar conexão anterior se existir
+    if (client) {
+      try {
+        await client.close();
+        console.log('Conexão anterior fechada');
+      } catch (closeError) {
+        console.warn('Erro ao fechar conexão anterior:', closeError.message);
+      }
+    }
     
     client = new MongoClient(uri, {
-      serverSelectionTimeoutMS: 10000, // Aumentando o timeout para 10 segundos
-      socketTimeoutMS: 45000,
-      connectTimeoutMS: 10000,
+      serverSelectionTimeoutMS: 15000, // Aumentando o timeout para 15 segundos
+      socketTimeoutMS: 60000,
+      connectTimeoutMS: 15000,
       maxPoolSize: 50,
       retryWrites: true,
       w: 'majority'
@@ -105,6 +116,13 @@ async function connectToMongoDB() {
     
     db = client.db(dbName);
     console.log('Database selecionado:', dbName);
+    
+    // Registrar função de reconexão globalmente
+    global.reconnectMongoDB = connectToMongoDB;
+    
+    // Atribuir o objeto db a app.locals.db para disponibilizá-lo para as rotas
+    app.locals.db = db;
+    console.log('Objeto db atribuído a app.locals.db');
     
     // Verificar se as coleções existem
     const collections = await db.listCollections().toArray();
@@ -140,13 +158,40 @@ async function connectToMongoDB() {
   }
 }
 
-// Middleware para verificar conexão com o banco
+// Middleware para verificar conexão com o banco e disponibilizá-lo para as rotas
 app.use(async (req, res, next) => {
-  if (!db) {
-    console.error('Banco de dados não está conectado');
-    return res.status(500).json({ message: 'Erro de conexão com o banco de dados' });
+  try {
+    // Verificar se o banco de dados está conectado
+    if (!db) {
+      console.error('Banco de dados não está conectado, tentando reconectar...');
+      try {
+        await connectToMongoDB();
+        console.log('Reconexão com o banco de dados bem-sucedida');
+      } catch (reconnectError) {
+        console.error('Falha na reconexão com o banco de dados:', reconnectError);
+        return res.status(500).json({ 
+          message: 'Erro de conexão com o banco de dados', 
+          details: 'Falha na tentativa de reconexão',
+          error: reconnectError.message
+        });
+      }
+    }
+    
+    // Garantir que o objeto db esteja disponível em app.locals.db
+    if (!req.app.locals.db && db) {
+      console.log('Atribuindo objeto db a app.locals.db no middleware');
+      req.app.locals.db = db;
+    }
+    
+    next();
+  } catch (error) {
+    console.error('Erro no middleware de verificação do banco:', error);
+    return res.status(500).json({ 
+      message: 'Erro interno no servidor', 
+      details: 'Falha no middleware de verificação do banco de dados',
+      error: error.message
+    });
   }
-  next();
 });
 
 // Middleware para verificar campos obrigatórios
