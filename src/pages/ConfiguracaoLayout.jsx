@@ -3,7 +3,7 @@ import styled from 'styled-components'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 import layoutThemes from '../themes/layoutThemes'
-import { updateUserConfig, getCurrentUser, limparDadosCompleto } from '../config/auth'
+import { updateUserConfig, getCurrentUser, limparDadosCompleto, limparDadosLocalmente, limparDadosCompletoV2, limparDadosNoServidorDireto } from '../config/auth'
 
 const Container = styled.div`
   padding: 20px;
@@ -323,8 +323,8 @@ const ConfiguracaoLayout = () => {
     try {
       setLoading(true)
       
-      // Usar a nova função que combina limpeza local e no servidor
-      const resultado = await limparDadosCompleto()
+      // Usar a versão V2 da função que tenta vários métodos
+      const resultado = await limparDadosCompletoV2()
       
       console.log('Resultado da limpeza:', resultado)
       
@@ -333,8 +333,14 @@ const ConfiguracaoLayout = () => {
         
         if (resultado.serverCleaned) {
           mensagem += `\nDados no servidor também foram limpos. ${resultado.senhasRemovidas || 0} senhas foram removidas.`
+          if (resultado.serverDirect) {
+            mensagem += '\n(Conexão direta com o servidor foi utilizada com sucesso)'
+          }
         } else if (resultado.serverError) {
           mensagem += `\nObs: Não foi possível limpar os dados no servidor (${resultado.serverError}), mas os dados locais foram limpos.`
+          if (resultado.bothMethodsFailed) {
+            mensagem += '\nAmbos os métodos de conexão com o servidor falharam.'
+          }
         }
         
         alert(mensagem)
@@ -349,6 +355,34 @@ const ConfiguracaoLayout = () => {
     } catch (error) {
       console.error('Erro ao tentar limpar dados:', error)
       alert('Ocorreu um erro ao tentar limpar os dados: ' + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const limparDadosServidor = async () => {
+    // Confirmar antes de limpar
+    const confirmar = window.confirm(
+      'ATENÇÃO: Esta ação tentará limpar os dados DIRETAMENTE NO SERVIDOR, contornando o proxy do Vercel. Esta ação não pode ser desfeita. Deseja continuar?'
+    )
+    
+    if (!confirmar) return
+    
+    try {
+      setLoading(true)
+      
+      // Chamar diretamente a função que acessa o servidor Render
+      const resultadoServidor = await limparDadosNoServidorDireto()
+      console.log('Resultado da limpeza direta no servidor:', resultadoServidor)
+      
+      if (resultadoServidor.success) {
+        alert(`Sucesso! Dados limpos diretamente no servidor. ${resultadoServidor.senhasRemovidas || 0} senhas foram removidas.`)
+      } else {
+        alert(`Erro ao limpar dados no servidor: ${resultadoServidor.error || 'Erro desconhecido'}\n\nTente novamente ou entre em contato com o suporte.`)
+      }
+    } catch (error) {
+      console.error('Erro ao tentar limpar dados no servidor:', error)
+      alert('Ocorreu um erro ao tentar limpar os dados no servidor: ' + error.message)
     } finally {
       setLoading(false)
     }
@@ -689,6 +723,17 @@ const ConfiguracaoLayout = () => {
           </DangerButton>
           
           <DangerButton 
+            onClick={limparDadosServidor}
+            disabled={loading}
+            style={{ 
+              marginBottom: '10px',
+              backgroundColor: '#e67e22'
+            }}
+          >
+            {loading ? 'Limpando...' : 'Limpar Apenas Dados do Servidor (Conexão Direta)'}
+          </DangerButton>
+          
+          <DangerButton 
             onClick={() => {
               // Mostrar confirmação
               const confirmar = window.confirm(
@@ -699,7 +744,7 @@ const ConfiguracaoLayout = () => {
               
               setLoading(true)
               // Usar modo offline forçado
-              limparDadosCompleto(true)
+              limparDadosCompletoV2(true)
                 .then(resultado => {
                   console.log('Resultado da limpeza offline:', resultado)
                   alert(`Limpeza local realizada com sucesso! ${resultado.keysRemoved} itens foram removidos.`)
@@ -724,7 +769,7 @@ const ConfiguracaoLayout = () => {
           </DangerButton>
         </div>
         <div style={{ fontSize: '14px', color: '#777', marginBottom: '20px' }}>
-          <p><strong>Dica:</strong> Se estiver enfrentando erros ao limpar dados no servidor, utilize a opção "Limpar Apenas Dados Locais".</p>
+          <p><strong>Dica:</strong> Se estiver enfrentando erros ao limpar dados, utilize a opção "Limpar Apenas Dados do Servidor" para contornar problemas com o proxy do Vercel.</p>
         </div>
       </Section>
       

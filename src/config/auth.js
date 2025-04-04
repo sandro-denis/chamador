@@ -430,7 +430,70 @@ export const limparDadosLocalmente = () => {
   }
 };
 
-// Função para limpar dados no servidor e localmente
+// Função para limpar dados diretamente no servidor Render (bypass do proxy Vercel)
+export const limparDadosNoServidorDireto = async () => {
+  try {
+    console.log('Tentando limpar dados diretamente no servidor Render...');
+    
+    const token = getToken();
+    if (!token) {
+      throw new Error('Usuário não autenticado');
+    }
+    
+    // Usar diretamente o endpoint do Render em vez do proxy do Vercel
+    const renderUrl = 'https://chamador.onrender.com/api/limpar-dados';
+    
+    // Criar uma instância independente do axios para esta chamada
+    const axiosInstance = axios.create({
+      baseURL: '',  // Sem base URL
+      timeout: 15000,  // Tempo limite de 15 segundos
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      }
+    });
+    
+    // Faz um preflight OPTIONS primeiro para verificar a acessibilidade
+    try {
+      await axiosInstance({
+        method: 'OPTIONS',
+        url: renderUrl,
+        timeout: 5000
+      });
+      console.log('Preflight OPTIONS bem-sucedido');
+    } catch (optionsError) {
+      console.warn('Erro no preflight OPTIONS (pode ser normal):', optionsError.message);
+      // Continuamos mesmo com erro no OPTIONS
+    }
+    
+    // Agora fazemos a chamada POST real
+    console.log('Enviando requisição POST para limpar dados diretamente no Render...');
+    const response = await axiosInstance.post(renderUrl, {});
+    
+    console.log('Servidor Render respondeu:', response.data);
+    
+    return {
+      success: true,
+      message: 'Dados limpos com sucesso no servidor Render',
+      senhasRemovidas: response.data.senhasRemovidas,
+      usuarioAtualizado: response.data.usuarioAtualizado,
+      serverDirect: true
+    };
+    
+  } catch (error) {
+    console.error('Erro ao limpar dados diretamente no servidor Render:', error);
+    return {
+      success: false,
+      message: 'Erro ao limpar dados no servidor Render',
+      error: error.message,
+      serverDirect: true,
+      serverError: error.response?.data || null
+    };
+  }
+};
+
+// Função para limpar dados no servidor e localmente (função original)
 export const limparDadosCompleto = async (forceOfflineOnly = false) => {
   try {
     if (forceOfflineOnly) {
@@ -545,6 +608,117 @@ export const limparDadosCompleto = async (forceOfflineOnly = false) => {
         error: error.message,
         serverCleaned: false,
         localError: localError.message
+      };
+    }
+  }
+};
+
+// Função completa para limpar dados com tentativa direta no servidor Render
+export const limparDadosCompletoV2 = async (forceOfflineOnly = false) => {
+  try {
+    if (forceOfflineOnly) {
+      console.log('Limpeza offline forçada solicitada');
+      const resultadoLocal = limparDadosLocalmente();
+      return {
+        ...resultadoLocal,
+        serverCleaned: false,
+        offlineMode: true
+      };
+    }
+    
+    // Primeiro, tentamos limpar localmente
+    const resultadoLocal = limparDadosLocalmente();
+    
+    // Se o usuário não estiver autenticado, retornamos apenas o resultado local
+    const token = getToken();
+    if (!token) {
+      console.log('Usuário não autenticado, limpando apenas dados locais');
+      return {
+        ...resultadoLocal,
+        serverCleaned: false,
+        notAuthenticated: true
+      };
+    }
+    
+    // Verificar conectividade com o servidor
+    let conectado = false;
+    try {
+      const testeConexao = await verificarConectividade();
+      conectado = testeConexao;
+    } catch (conectividadeError) {
+      console.warn('Erro ao verificar conectividade:', conectividadeError);
+      conectado = false;
+    }
+    
+    if (!conectado) {
+      console.warn('Sem conectividade com o servidor, apenas dados locais foram limpos');
+      return {
+        ...resultadoLocal,
+        serverCleaned: false,
+        connectivityIssue: true
+      };
+    }
+    
+    // Tentar método 1: Usando o proxy do Vercel (pode falhar com erro 500)
+    console.log('Tentando método 1: Limpar dados via proxy Vercel...');
+    try {
+      const resultadoVercel = await limparDadosCompleto(false);
+      
+      // Se conseguimos limpar via Vercel, retornamos o resultado
+      if (resultadoVercel.serverCleaned) {
+        console.log('Método 1 bem-sucedido: Dados limpos via proxy Vercel');
+        return resultadoVercel;
+      }
+      
+      // Se falhou no servidor, tentamos o método 2
+      console.log('Método 1 falhou, tentando método 2...');
+    } catch (vercelError) {
+      console.warn('Erro no método 1 (Vercel proxy):', vercelError);
+      // Continuamos para o método 2
+    }
+    
+    // Método 2: Tentar diretamente no servidor Render
+    console.log('Tentando método 2: Limpar dados diretamente no Render...');
+    try {
+      const resultadoRender = await limparDadosNoServidorDireto();
+      
+      // Combinamos os resultados local e do servidor
+      return {
+        ...resultadoLocal,
+        serverCleaned: resultadoRender.success,
+        senhasRemovidas: resultadoRender.senhasRemovidas,
+        serverMessage: resultadoRender.message,
+        serverDirect: true,
+        method: 'direct'
+      };
+    } catch (renderError) {
+      console.error('Método 2 falhou:', renderError);
+      
+      return {
+        ...resultadoLocal,
+        serverCleaned: false,
+        serverError: renderError.message,
+        bothMethodsFailed: true
+      };
+    }
+  } catch (error) {
+    console.error('Erro geral na limpeza de dados V2:', error);
+    
+    // Garantir que pelo menos os dados locais foram limpos
+    try {
+      const resultadoLocal = limparDadosLocalmente();
+      return {
+        ...resultadoLocal,
+        serverCleaned: false,
+        generalError: error.message
+      };
+    } catch (localError) {
+      return {
+        success: false,
+        message: 'Erro crítico na limpeza de dados',
+        error: error.message,
+        localError: localError.message,
+        serverCleaned: false
       };
     }
   }
