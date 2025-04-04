@@ -3,7 +3,17 @@ import styled from 'styled-components'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
 import layoutThemes from '../themes/layoutThemes'
-import { updateUserConfig, getCurrentUser, limparDadosCompleto, limparDadosLocalmente, limparDadosCompletoV2, limparDadosNoServidorDireto, limparDadosEmergencia } from '../config/auth'
+import { 
+  updateUserConfig, 
+  getCurrentUser, 
+  limparDadosCompleto, 
+  limparDadosLocalmente, 
+  limparDadosCompletoV2, 
+  limparDadosNoServidorDireto, 
+  limparDadosEmergencia,
+  limparDadosUltimaChance,
+  limparDadosDiretoNoServidor
+} from '../config/auth'
 
 const Container = styled.div`
   padding: 20px;
@@ -453,6 +463,63 @@ const ConfiguracaoLayout = () => {
     }
   }
 
+  const limparDadosDefinitivamente = async () => {
+    // Confirmação especial
+    const confirmar = window.confirm(
+      '⚠️ ATENÇÃO: MÉTODO DEFINITIVO DE LIMPEZA ⚠️\n\n' +
+      'Esta opção combinará TODAS as abordagens possíveis para garantir a limpeza dos dados.\n\n' +
+      'Ela tentará sequencialmente:\n' +
+      '1. Limpar diretamente usando uma rota especial\n' +
+      '2. Limpar via conexão direta com o servidor Render\n' +
+      '3. Limpar via API de emergência\n\n' +
+      'Tem certeza que deseja prosseguir?'
+    )
+    
+    if (!confirmar) return
+    
+    try {
+      setLoading(true)
+      
+      const resultado = await limparDadosUltimaChance()
+      console.log('Resultado da limpeza definitiva:', resultado)
+      
+      if (resultado.serverCleaned) {
+        alert(
+          '✅ LIMPEZA BEM-SUCEDIDA!\n\n' +
+          `Método utilizado: ${resultado.abordagem}\n` +
+          `Senhas removidas no servidor: ${resultado.senhasRemovidas || 0}\n` +
+          `Itens removidos localmente: ${resultado.keysRemoved || 0}\n\n` +
+          'A página será recarregada automaticamente.'
+        )
+      } else if (resultado.todasAbordagensFalharam) {
+        alert(
+          '⚠️ LIMPEZA PARCIAL\n\n' +
+          'Não foi possível limpar os dados no servidor utilizando nenhuma das abordagens.\n' +
+          'No entanto, os dados locais foram limpos com sucesso.\n\n' +
+          `Itens removidos localmente: ${resultado.keysRemoved || 0}\n\n` +
+          'A página será recarregada automaticamente.'
+        )
+      } else {
+        alert(
+          '⚠️ LIMPEZA PARCIAL\n\n' +
+          `Erro: ${resultado.erroGeral || 'Falha ao limpar no servidor'}\n` +
+          `Itens removidos localmente: ${resultado.keysRemoved || 0}\n\n` +
+          'A página será recarregada automaticamente.'
+        )
+      }
+      
+      // Recarregar a página
+      setTimeout(() => {
+        window.location.reload()
+      }, 1500)
+    } catch (error) {
+      console.error('Erro crítico na limpeza definitiva:', error)
+      alert('Erro crítico na limpeza definitiva: ' + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <Container>
       <Title>Configuração do Layout</Title>
@@ -780,6 +847,19 @@ const ConfiguracaoLayout = () => {
         </p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <DangerButton 
+            onClick={limparDadosDefinitivamente} 
+            disabled={loading}
+            style={{ 
+              marginBottom: '15px',
+              backgroundColor: '#8e44ad',
+              fontWeight: 'bold',
+              padding: '12px'
+            }}
+          >
+            {loading ? 'LIMPANDO...' : '⚡ SUPER LIMPEZA: USAR ESTE PRIMEIRO ⚡'}
+          </DangerButton>
+        
+          <DangerButton 
             onClick={limparDados} 
             disabled={loading}
             style={{ marginBottom: '10px' }}
@@ -796,18 +876,6 @@ const ConfiguracaoLayout = () => {
             }}
           >
             {loading ? 'Limpando...' : 'Limpar Apenas Dados do Servidor (Conexão Direta)'}
-          </DangerButton>
-          
-          <DangerButton 
-            onClick={limparDadosEmergencia}
-            disabled={loading}
-            style={{ 
-              marginBottom: '10px',
-              backgroundColor: '#ff5722',
-              fontWeight: 'bold'
-            }}
-          >
-            {loading ? 'Limpando...' : '🔥 EMERGÊNCIA: Limpar Dados do Servidor (API Alternativa)'}
           </DangerButton>
           
           <DangerButton 
@@ -885,7 +953,7 @@ const ConfiguracaoLayout = () => {
           </div>
         </div>
         <div style={{ fontSize: '14px', color: '#777', marginBottom: '20px' }}>
-          <p><strong>Dica:</strong> Se estiver enfrentando erros ao limpar dados, utilize a opção "Limpar Apenas Dados do Servidor" para contornar problemas com o proxy do Vercel.</p>
+          <p><strong>Dica:</strong> Use o botão roxo "SUPER LIMPEZA" primeiro, ele tenta todas as abordagens possíveis para garantir que os dados sejam limpos.</p>
         </div>
       </Section>
       

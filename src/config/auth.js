@@ -933,3 +933,147 @@ export const limparDadosEmergencia = async () => {
     }
   }
 };
+
+// Função para limpar dados diretamente no servidor (usando rota simplificada)
+export const limparDadosDiretoNoServidor = async () => {
+  try {
+    console.log('Tentando limpar dados usando a rota direta no servidor...');
+    
+    const token = getToken();
+    if (!token) {
+      throw new Error('Usuário não autenticado');
+    }
+    
+    // Log do token (parcial, para depuração)
+    console.log('Token para autenticação:', token.substring(0, 10) + '...');
+    
+    // Conectar diretamente à API sem proxy
+    const urlBase = process.env.NODE_ENV === 'production' 
+      ? 'https://chamador.onrender.com' 
+      : 'http://localhost:3005';
+    
+    const apiUrl = `${urlBase}/api/limpar-dados-direto`;
+    console.log('Conectando ao endpoint direto:', apiUrl);
+    
+    // Fazer a requisição
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        timestamp: new Date().toISOString()
+      })
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Erro na resposta: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+    
+    const data = await response.json();
+    console.log('Resposta da limpeza direta:', data);
+    
+    return {
+      success: true,
+      message: 'Dados limpos com sucesso usando rota direta',
+      senhasRemovidas: data.senhasRemovidas || 0,
+      rotaDireta: true
+    };
+    
+  } catch (error) {
+    console.error('Erro ao limpar dados com rota direta:', error);
+    return {
+      success: false,
+      message: 'Erro ao limpar dados com rota direta',
+      error: error.message,
+      rotaDireta: true
+    };
+  }
+};
+
+// Função mais robusta para limpar dados combinando todas as abordagens
+export const limparDadosUltimaChance = async () => {
+  try {
+    console.log('Iniciando limpeza de última chance com todas as abordagens...');
+    
+    // Limpar dados localmente primeiro
+    const resultadoLocal = limparDadosLocalmente();
+    console.log('Resultado da limpeza local:', resultadoLocal);
+    
+    // Tentar abordagem 1: direto no servidor principal
+    try {
+      console.log('Tentando abordagem 1: limpar diretamente no servidor...');
+      const resultadoDireto = await limparDadosDiretoNoServidor();
+      
+      if (resultadoDireto.success) {
+        console.log('Abordagem 1 bem-sucedida!');
+        return {
+          ...resultadoLocal,
+          serverCleaned: true,
+          abordagem: 'direta',
+          senhasRemovidas: resultadoDireto.senhasRemovidas
+        };
+      }
+    } catch (erro1) {
+      console.error('Falha na abordagem 1:', erro1);
+    }
+    
+    // Tentar abordagem 2: servidor Render direto
+    try {
+      console.log('Tentando abordagem 2: limpar via conexão direta Render...');
+      const resultadoRender = await limparDadosNoServidorDireto();
+      
+      if (resultadoRender.success) {
+        console.log('Abordagem 2 bem-sucedida!');
+        return {
+          ...resultadoLocal,
+          serverCleaned: true,
+          abordagem: 'render',
+          senhasRemovidas: resultadoRender.senhasRemovidas
+        };
+      }
+    } catch (erro2) {
+      console.error('Falha na abordagem 2:', erro2);
+    }
+    
+    // Tentar abordagem 3: API emergencial
+    try {
+      console.log('Tentando abordagem 3: limpar via API de emergência...');
+      const resultadoEmergencia = await limparDadosEmergencia();
+      
+      if (resultadoEmergencia.success) {
+        console.log('Abordagem 3 bem-sucedida!');
+        return {
+          ...resultadoLocal,
+          serverCleaned: true,
+          abordagem: 'emergencia',
+          senhasRemovidas: resultadoEmergencia.apiResponse?.senhasRemovidas || 0
+        };
+      }
+    } catch (erro3) {
+      console.error('Falha na abordagem 3:', erro3);
+    }
+    
+    // Se todas as abordagens falharem, retornar apenas os dados locais limpos
+    return {
+      ...resultadoLocal,
+      serverCleaned: false,
+      todasAbordagensFalharam: true
+    };
+    
+  } catch (error) {
+    console.error('Erro na limpeza de última chance:', error);
+    
+    // Garantir pelo menos a limpeza local
+    const resultadoLocal = limparDadosLocalmente();
+    
+    return {
+      ...resultadoLocal,
+      serverCleaned: false,
+      erroGeral: error.message
+    };
+  }
+};
