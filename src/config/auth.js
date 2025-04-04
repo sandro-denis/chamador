@@ -440,22 +440,86 @@ export const limparDadosNoServidorDireto = async () => {
       throw new Error('Usuário não autenticado');
     }
     
+    // Log do token (parcial, para depuração)
+    console.log('Token para autenticação:', token.substring(0, 15) + '...');
+    
     // Usar diretamente o endpoint do Render em vez do proxy do Vercel
     const renderUrl = 'https://chamador.onrender.com/api/limpar-dados';
+    console.log('URL do servidor Render:', renderUrl);
+    
+    // Verificar conectividade com o Render antes de prosseguir
+    try {
+      console.log('Verificando conectividade com o servidor Render...');
+      const checkResponse = await fetch('https://chamador.onrender.com/api/check-connection', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        },
+        timeout: 5000
+      });
+      
+      if (checkResponse.ok) {
+        const checkData = await checkResponse.json();
+        console.log('Conectividade com Render OK:', checkData);
+      } else {
+        console.warn('Erro ao verificar conectividade com Render:', checkResponse.status);
+      }
+    } catch (connectError) {
+      console.warn('Falha ao verificar conectividade com Render:', connectError.message);
+      // Continuamos mesmo com erro de conectividade
+    }
     
     // Criar uma instância independente do axios para esta chamada
     const axiosInstance = axios.create({
       baseURL: '',  // Sem base URL
-      timeout: 15000,  // Tempo limite de 15 segundos
+      timeout: 20000,  // Aumentado para 20 segundos
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
       }
     });
     
+    // Tentar usar fetch em vez de axios (alternativa)
+    try {
+      console.log('Tentando método fetch alternativo...');
+      const fetchResponse = await fetch(renderUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({}),
+        credentials: 'omit'  // Não enviar cookies
+      });
+      
+      if (fetchResponse.ok) {
+        const data = await fetchResponse.json();
+        console.log('Fetch alternativo bem-sucedido:', data);
+        
+        return {
+          success: true,
+          message: 'Dados limpos com sucesso no servidor Render (via fetch)',
+          senhasRemovidas: data.senhasRemovidas,
+          usuarioAtualizado: data.usuarioAtualizado,
+          serverDirect: true,
+          method: 'fetch'
+        };
+      } else {
+        console.warn('Método fetch falhou:', fetchResponse.status);
+        // Continuar com Axios se fetch falhar
+      }
+    } catch (fetchError) {
+      console.warn('Erro no método fetch:', fetchError.message);
+      // Continuar com Axios se fetch falhar
+    }
+    
     // Faz um preflight OPTIONS primeiro para verificar a acessibilidade
     try {
+      console.log('Enviando requisição OPTIONS para verificar CORS...');
       await axiosInstance({
         method: 'OPTIONS',
         url: renderUrl,
@@ -467,10 +531,19 @@ export const limparDadosNoServidorDireto = async () => {
       // Continuamos mesmo com erro no OPTIONS
     }
     
-    // Agora fazemos a chamada POST real
+    // Agora fazemos a chamada POST real com o Axios
     console.log('Enviando requisição POST para limpar dados diretamente no Render...');
-    const response = await axiosInstance.post(renderUrl, {});
     
+    // Montar objeto de dados explicitamente
+    const postData = {
+      timestamp: new Date().toISOString()
+    };
+    
+    // Logando os cabeçalhos que serão enviados
+    console.log('Cabeçalhos:', axiosInstance.defaults.headers);
+    
+    const response = await axiosInstance.post(renderUrl, postData);
+    console.log('Resposta bruta da requisição:', response);
     console.log('Servidor Render respondeu:', response.data);
     
     return {
@@ -478,16 +551,41 @@ export const limparDadosNoServidorDireto = async () => {
       message: 'Dados limpos com sucesso no servidor Render',
       senhasRemovidas: response.data.senhasRemovidas,
       usuarioAtualizado: response.data.usuarioAtualizado,
-      serverDirect: true
+      serverDirect: true,
+      method: 'axios'
     };
     
   } catch (error) {
     console.error('Erro ao limpar dados diretamente no servidor Render:', error);
+    
+    // Detalhamento do erro para diagnóstico
+    let errorDetails = {
+      message: error.message,
+      code: error.code || 'desconhecido'
+    };
+    
+    if (error.response) {
+      // O servidor respondeu com um status fora da faixa 2xx
+      errorDetails.status = error.response.status;
+      errorDetails.statusText = error.response.statusText;
+      errorDetails.data = error.response.data;
+      errorDetails.headers = error.response.headers;
+      
+      console.error('Detalhes do erro de resposta:', errorDetails);
+    } else if (error.request) {
+      // A requisição foi feita mas não houve resposta
+      errorDetails.request = 'Sem resposta do servidor';
+      errorDetails.timeout = error.timeout === true;
+      
+      console.error('Erro de requisição (sem resposta):', errorDetails);
+    }
+    
     return {
       success: false,
       message: 'Erro ao limpar dados no servidor Render',
       error: error.message,
       serverDirect: true,
+      errorDetails: errorDetails,
       serverError: error.response?.data || null
     };
   }
