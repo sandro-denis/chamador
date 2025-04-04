@@ -352,7 +352,12 @@ export const limparDadosLocalmente = () => {
       'senhasAguardando',
       'ultimasSenhasChamadas',
       'ultimaChamada',
-      'estatisticas'
+      'estatisticas',
+      'senhasEmAtendimento',
+      'ultimoAtendimento',
+      'painel_senhas',
+      'totem_config',
+      'senhasFinalizadas'
     ];
     
     // Remover as chaves específicas
@@ -375,7 +380,11 @@ export const limparDadosLocalmente = () => {
         key.includes('atendimento') || 
         key.includes('Atendimento') ||
         key.includes('contador') ||
-        key.includes('Contador')
+        key.includes('Contador') ||
+        key.includes('cache_') ||
+        key.includes('Cache_') ||
+        key.includes('data_') ||
+        key.includes('fila_')
       )) {
         keysToRemove.push(key);
       }
@@ -386,6 +395,24 @@ export const limparDadosLocalmente = () => {
       console.log(`Removendo ${key}...`);
       localStorage.removeItem(key);
     });
+    
+    // Limpar o sessionStorage também
+    try {
+      const sessionKeys = [];
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && !key.includes('token') && !key.includes('auth')) {
+          sessionKeys.push(key);
+        }
+      }
+      
+      sessionKeys.forEach(key => {
+        console.log(`Removendo do sessionStorage: ${key}...`);
+        sessionStorage.removeItem(key);
+      });
+    } catch (sessionError) {
+      console.warn('Erro ao limpar sessionStorage:', sessionError);
+    }
     
     console.log('Limpeza de dados local concluída!');
     return {
@@ -404,8 +431,18 @@ export const limparDadosLocalmente = () => {
 };
 
 // Função para limpar dados no servidor e localmente
-export const limparDadosCompleto = async () => {
+export const limparDadosCompleto = async (forceOfflineOnly = false) => {
   try {
+    if (forceOfflineOnly) {
+      console.log('Limpeza offline forçada solicitada');
+      const resultadoLocal = limparDadosLocalmente();
+      return {
+        ...resultadoLocal,
+        serverCleaned: false,
+        offlineMode: true
+      };
+    }
+    
     const token = getToken();
     if (!token) {
       // Se não estiver autenticado, apenas limpa localmente
@@ -413,12 +450,47 @@ export const limparDadosCompleto = async () => {
       const resultadoLocal = limparDadosLocalmente();
       return {
         ...resultadoLocal,
-        serverCleaned: false
+        serverCleaned: false,
+        notAuthenticated: true
+      };
+    }
+    
+    // Verificar conectividade antes de tentar a limpeza no servidor
+    let conectado = false;
+    try {
+      const testeConexao = await verificarConectividade();
+      conectado = testeConexao;
+    } catch (conectividadeError) {
+      console.warn('Erro ao verificar conectividade:', conectividadeError);
+      conectado = false;
+    }
+    
+    if (!conectado) {
+      console.log('Sem conectividade com o servidor, limpando apenas dados locais');
+      const resultadoLocal = limparDadosLocalmente();
+      return {
+        ...resultadoLocal,
+        serverCleaned: false,
+        connectivityIssue: true
       };
     }
     
     // Tentar limpar no servidor primeiro
     try {
+      // Ao invés de tentar diretamente, primeiro fazemos uma solicitação OPTIONS
+      // para verificar se o endpoint está acessível
+      try {
+        await axios({
+          method: 'OPTIONS',
+          url: '/api/limpar-dados',
+          timeout: 5000
+        });
+      } catch (optionsError) {
+        console.warn('Erro no preflight OPTIONS para limpar-dados:', optionsError);
+        // Continuamos mesmo com erro no OPTIONS
+      }
+      
+      // Agora tentamos o POST real
       const response = await axios.post(
         '/api/limpar-dados',
         {},
@@ -458,11 +530,22 @@ export const limparDadosCompleto = async () => {
     }
   } catch (error) {
     console.error('Erro geral na limpeza de dados:', error);
-    return {
-      success: false,
-      message: 'Erro geral na limpeza de dados',
-      error: error.message,
-      serverCleaned: false
-    };
+    // Mesmo com erro geral, tenta limpar localmente como último recurso
+    try {
+      const resultadoLocal = limparDadosLocalmente();
+      return {
+        ...resultadoLocal,
+        serverCleaned: false,
+        generalError: error.message
+      };
+    } catch (localError) {
+      return {
+        success: false,
+        message: 'Erro geral na limpeza de dados',
+        error: error.message,
+        serverCleaned: false,
+        localError: localError.message
+      };
+    }
   }
 };

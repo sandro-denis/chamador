@@ -679,13 +679,53 @@ const ConfiguracaoLayout = () => {
           Utilize esta opção para limpar todos os dados de senhas e atendimentos da empresa {user?.companyName}.
           Esta ação não pode ser desfeita.  
         </p>
-        <DangerButton 
-          onClick={limparDados} 
-          disabled={loading}
-          style={{ marginBottom: '20px' }}
-        >
-          {loading ? 'Limpando...' : 'Limpar Dados do Sistema'}
-        </DangerButton>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <DangerButton 
+            onClick={limparDados} 
+            disabled={loading}
+            style={{ marginBottom: '10px' }}
+          >
+            {loading ? 'Limpando...' : 'Limpar Dados do Sistema'}
+          </DangerButton>
+          
+          <DangerButton 
+            onClick={() => {
+              // Mostrar confirmação
+              const confirmar = window.confirm(
+                'ATENÇÃO: Esta ação irá remover todos os dados LOCAIS sem tentar limpar dados do servidor. Use apenas se estiver com problemas de conectividade. Esta ação não pode ser desfeita. Deseja continuar?'
+              )
+              
+              if (!confirmar) return
+              
+              setLoading(true)
+              // Usar modo offline forçado
+              limparDadosCompleto(true)
+                .then(resultado => {
+                  console.log('Resultado da limpeza offline:', resultado)
+                  alert(`Limpeza local realizada com sucesso! ${resultado.keysRemoved} itens foram removidos.`)
+                  setTimeout(() => window.location.reload(), 1000)
+                })
+                .catch(error => {
+                  console.error('Erro na limpeza offline:', error)
+                  alert(`Erro na limpeza local: ${error.message}`)
+                })
+                .finally(() => {
+                  setLoading(false)
+                })
+            }}
+            disabled={loading}
+            style={{ 
+              marginBottom: '20px', 
+              backgroundColor: '#f39c12',
+              fontSize: '0.9em'
+            }}
+          >
+            {loading ? 'Limpando...' : 'Limpar Apenas Dados Locais (Modo Offline)'}
+          </DangerButton>
+        </div>
+        <div style={{ fontSize: '14px', color: '#777', marginBottom: '20px' }}>
+          <p><strong>Dica:</strong> Se estiver enfrentando erros ao limpar dados no servidor, utilize a opção "Limpar Apenas Dados Locais".</p>
+        </div>
       </Section>
       
       <Button onClick={saveConfig}>Salvar Configurações</Button>
